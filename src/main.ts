@@ -20,6 +20,8 @@ async function bootstrap() {
 
   app.useGlobalPipes(new ValidationPipe());
 
-  await app.listen(port);
+  await app.listen(port, async () => {
+    console.log('Listening on', await app.getUrl());
+  });
 }
 bootstrap();
