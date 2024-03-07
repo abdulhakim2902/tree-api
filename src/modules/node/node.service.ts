@@ -347,6 +347,11 @@ export class NodeService {
           },
         },
       },
+      {
+        $sort: {
+          name: 1,
+        },
+      },
     ];
     return this.nodeRepository.aggregate(pipeline);
   }
