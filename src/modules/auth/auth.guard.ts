@@ -18,13 +18,21 @@ export class AuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+
     if (isPublic) {
       return true;
     }
 
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractTokenFromHeader(request);
-    if (!token) throw new UnauthorizedException('Invalid token format');
+    if (!token) {
+      const path = context.switchToHttp().getRequest<Request>().path;
+      if (path.startsWith('/nodes/search') || path.match(/\/nodes\/.*\/root/)) {
+        return true;
+      }
+
+      throw new UnauthorizedException('Invalid token format');
+    }
 
     try {
       const payload = await this.jwtService.verifyAsync(token);
