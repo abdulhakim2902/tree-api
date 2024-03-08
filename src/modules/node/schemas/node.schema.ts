@@ -11,7 +11,7 @@ import {
 } from 'src/enums/relation-type.enum';
 import { BadRequestException } from '@nestjs/common';
 import { MONTHS } from 'src/constants/month';
-import { startCase } from 'lodash';
+import { omit, startCase } from 'lodash';
 import { NodeFamily, NodeFamilySchema } from './node.family.schema';
 
 export type NodeDocument = Node & Document;
@@ -22,7 +22,7 @@ export type NodeDocument = Node & Document;
   timestamps: true,
   toJSON: {
     virtuals: true,
-    transform: (doc, ret) => Object.assign(ret, { _id: undefined }),
+    transform: (doc, ret) => omit(ret, ['_id']),
   },
 })
 export class Node extends Document {

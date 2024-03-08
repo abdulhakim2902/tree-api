@@ -1,12 +1,20 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Request,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
 import { NodeService } from './node.service';
 import { CreateNodeDto, UpdateNodeDto } from './dto';
 import { CreateParentsDto } from './dto/create-parents.dto';
 import { CreateChildDto } from './dto/create-child.dto';
-import { Public } from 'src/decorators/public';
+import { Request as Req } from 'src/interfaces/request.interface';
 
 @ApiBearerAuth()
 @ApiTags(Tag.NODE)
@@ -14,66 +22,39 @@ import { Public } from 'src/decorators/public';
 export class NodeController {
   constructor(private readonly nodeService: NodeService) {}
 
-  @Public()
-  @Get('/search/:name/public')
-  @ApiQuery({ name: 'tree', type: Boolean, required: false })
-  async searchPublic(
-    @Param('name') name: string,
-    @Query('tree') tree?: string,
-  ) {
-    return this.nodeService.search(name, tree, true);
-  }
-
-  @Public()
-  @Get('/:id/root/public')
-  @ApiQuery({ name: 'tree', type: Boolean, required: false })
-  async rootPublic(@Param('id') id: string, @Query('tree') tree?: string) {
-    return this.nodeService.findRoot(id, tree, true);
-  }
-
-  @Public()
-  @Get('/search/:name')
-  @ApiQuery({ name: 'tree', type: Boolean, required: false })
-  async search(@Param('name') name: string, @Query('tree') tree?: string) {
-    return this.nodeService.search(name, tree);
-  }
-
-  @Public()
   @Get('/families')
-  async findFamilies() {
-    return this.nodeService.findFamilies();
+  async families(@Request() req: Req) {
+    return this.nodeService.families(!Boolean(req?.user));
+  }
+
+  @Get('/search/:name')
+  async search(@Param('name') name: string, @Request() req: Req) {
+    return this.nodeService.search(name, !Boolean(req?.user));
   }
 
   @Get('/:id/root')
-  @ApiQuery({ name: 'tree', type: Boolean, required: false })
-  async root(@Param('id') id: string, @Query('tree') tree?: string) {
-    return this.nodeService.findRoot(id, tree);
+  async root(@Param('id') id: string, @Request() req: Req) {
+    return this.nodeService.root(id, !Boolean(req?.user));
   }
 
   @Get('/:id/parents-and-children')
-  @ApiQuery({ name: 'tree', type: Boolean, required: false })
-  async findParents(@Param('id') id: string, @Query('tree') tree?: string) {
-    return this.nodeService.findParentsAndChildren(id, tree);
+  async parentsAndChildren(@Param('id') id: string) {
+    return this.nodeService.parentsAndChildren(id);
   }
 
   @Get('/:id/spouses-and-children')
-  @ApiQuery({ name: 'tree', type: Boolean, required: false })
-  async findSpousesAndChildren(
-    @Param('id') id: string,
-    @Query('tree') tree?: string,
-  ) {
-    return this.nodeService.findSpousesAndChildren(id, tree);
+  async spousesAndChildren(@Param('id') id: string) {
+    return this.nodeService.spousesAndChildren(id);
   }
 
   @Get('/:id/spouses')
-  @ApiQuery({ name: 'tree', type: Boolean, required: false })
-  async findSpouses(@Param('id') id: string, @Query('tree') tree?: string) {
-    return this.nodeService.findSpouses(id, tree);
+  async spouses(@Param('id') id: string) {
+    return this.nodeService.spouses(id);
   }
 
   @Get('/:id/families')
-  async findFamiliesById(@Param('id') id: string) {
-    return this.nodeService.findFamiliesById(id);
+  async nodeFamilies(@Param('id') id: string) {
+    return this.nodeService.nodeFamilies(id);
   }
 
   @ApiBody({ type: CreateParentsDto, isArray: false })
@@ -90,18 +71,18 @@ export class NodeController {
 
   @ApiBody({ type: CreateChildDto, isArray: false })
   @Post('/:id/child')
-  async child(@Param('id') id: string, @Body() data: CreateChildDto) {
+  async createChild(@Param('id') id: string, @Body() data: CreateChildDto) {
     return this.nodeService.createChild(id, data);
   }
 
   @ApiBody({ type: CreateNodeDto, isArray: false })
   @Post('/:id/sibling')
-  async sibling(@Param('id') id: string, @Body() data: CreateNodeDto) {
+  async createSibling(@Param('id') id: string, @Body() data: CreateNodeDto) {
     return this.nodeService.createSibling(id, data);
   }
 
   @ApiBody({ type: UpdateNodeDto, isArray: false })
-  @Put('/:id')
+  @Patch('/:id')
   async updateById(@Param('id') id: string, @Body() data: UpdateNodeDto) {
     return this.nodeService.updateById(id, data);
   }

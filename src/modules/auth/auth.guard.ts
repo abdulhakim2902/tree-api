@@ -27,7 +27,11 @@ export class AuthGuard implements CanActivate {
     const token = this.extractTokenFromHeader(request);
     if (!token) {
       const path = context.switchToHttp().getRequest<Request>().path;
-      if (path.startsWith('/nodes/search') || path.match(/\/nodes\/.*\/root/)) {
+      if (
+        path.startsWith('/nodes/search') ||
+        path.match(/\/nodes\/.*\/root/) ||
+        path.startsWith('/nodes/families')
+      ) {
         return true;
       }
 
