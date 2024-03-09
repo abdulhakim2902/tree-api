@@ -49,15 +49,6 @@ export class NodeService {
     return updated;
   }
 
-  async deleteById(id: string) {
-    // TODO: relation check
-    const node = await this.nodeRepository.findById(id);
-    if (node.children.length > 0) {
-      throw new UnprocessableEntityException('Children existed');
-    }
-    // const marriedSpouses = node.totalSpouses(SpouseRelationType.MARRIED);
-  }
-
   async createParents(id: string, data: CreateParentsDto) {
     const child = await this.nodeRepository.findById(id);
     if (child.parents.length === 2) {
@@ -76,14 +67,13 @@ export class NodeService {
       for (const e of [father, mother]) {
         // Added child to parent
         const parent = await this.nodeRepository.insert(e);
-        const parentName = parent.name.nicknames?.[0] ?? parent.name.first;
         const parentChild = { id: child.id, type: RelationType.BLOOD };
         parent.children.push(parentChild as NodeRelation);
         parents.push(parent);
 
         // Added parent to child
         const childParent = { id: parent.id, type: RelationType.BLOOD };
-        const childFamily = { id: parent.id, name: parentName };
+        const childFamily = { id: parent.id, name: parent.fullname };
         child.parents.push(childParent as NodeRelation);
         child.families.push(childFamily as NodeFamily);
       }
