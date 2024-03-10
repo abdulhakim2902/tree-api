@@ -9,11 +9,12 @@ import { Node } from 'src/modules/node/schemas/node.schema';
 import { NodeRepository } from 'src/modules/node/node.repository';
 import { RelationType, SpouseRelationType } from 'src/enums/relation-type.enum';
 import { NodeRelation } from './schemas/node.relation.schema';
-import { intersectionWith, omit, startCase } from 'lodash';
+import { intersectionWith, omit } from 'lodash';
 import { NodeFamily } from './schemas/node.family.schema';
 import { PipelineStage } from 'mongoose';
 import { TreeNode, TreeNodeFamily } from 'src/interfaces/tree-node.interface';
 import { Gender } from 'src/enums/gender.enum';
+import { startCase } from 'src/helper/string';
 
 @Injectable()
 export class NodeService {

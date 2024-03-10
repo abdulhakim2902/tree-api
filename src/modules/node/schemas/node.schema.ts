@@ -11,8 +11,9 @@ import {
 } from 'src/enums/relation-type.enum';
 import { BadRequestException } from '@nestjs/common';
 import { MONTHS } from 'src/constants/month';
-import { omit, startCase } from 'lodash';
+import { omit } from 'lodash';
 import { NodeFamily, NodeFamilySchema } from './node.family.schema';
+import { startCase } from 'src/helper/string';
 
 export type NodeDocument = Node & Document;
 
