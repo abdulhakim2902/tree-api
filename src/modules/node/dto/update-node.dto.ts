@@ -12,7 +12,7 @@ export class UpdateNodeDto {
   @ValidateNested()
   @Type(() => CreateNameDto)
   @IsOptional()
-  readonly name: CreateNameDto;
+  readonly name: Omit<CreateNameDto, 'nicknames'>;
 
   @ApiProperty({
     type: Gender,

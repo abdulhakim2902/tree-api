@@ -8,7 +8,6 @@ import {
   IsOptional,
   IsString,
   Max,
-  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -64,7 +63,7 @@ export class CreateBirthPlaceDto {
   })
   @IsString()
   @MinLength(3)
-  @IsNotEmpty()
+  @IsOptional()
   readonly city: string;
 
   @ApiProperty({
@@ -74,7 +73,7 @@ export class CreateBirthPlaceDto {
   })
   @IsString()
   @MinLength(3)
-  @IsNotEmpty()
+  @IsOptional()
   readonly country: string;
 }
 
@@ -86,7 +85,7 @@ export class CreateBirthDto {
   })
   @IsInt()
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   readonly year: number;
 
   @ApiProperty({
@@ -94,11 +93,10 @@ export class CreateBirthDto {
     required: true,
     example: 10,
   })
-  @Min(1)
   @Max(12)
   @IsInt()
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   readonly month: number;
 
   @ApiProperty({
@@ -106,11 +104,10 @@ export class CreateBirthDto {
     required: true,
     example: 1,
   })
-  @Min(1)
   @Max(31)
   @IsInt()
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   readonly day: number;
 
   @ApiProperty({

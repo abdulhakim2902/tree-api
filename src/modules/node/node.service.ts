@@ -30,15 +30,13 @@ export class NodeService {
       throw new UnprocessableEntityException('Gender cannot be changed');
     }
 
-    if (data.name) {
-      node.name.first = data.name.first;
-      node.name.middle = data.name.middle;
-      node.name.last = data.name.last;
-    }
+    node.name.first = data.name.first;
+    node.name.middle = data.name.middle;
+    node.name.last = data.name.last;
 
-    if (data.birth) {
-      Object.assign(node.birth, data.birth);
-    }
+    node.birth.day = data.birth.day;
+    node.birth.month = data.birth.month;
+    node.birth.year = data.birth.year;
 
     const updated = await node.save();
 

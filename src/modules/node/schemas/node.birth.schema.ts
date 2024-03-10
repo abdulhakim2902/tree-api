@@ -6,14 +6,14 @@ class BirthPlace extends Document {
   @Prop({
     type: String,
     lowercase: true,
-    required: true,
+    default: '',
   })
   city: string;
 
   @Prop({
     type: String,
     lowercase: true,
-    required: true,
+    default: '',
   })
   country: string;
 }
@@ -24,19 +24,22 @@ const BirthPlaceSchema = SchemaFactory.createForClass(BirthPlace);
 export class NodeBirth extends Document {
   @Prop({
     type: Number,
-    required: true,
+    required: false,
+    default: -1,
   })
   year: number;
 
   @Prop({
     type: Number,
     required: false,
+    default: 0,
   })
   month: number;
 
   @Prop({
     type: Number,
     required: false,
+    default: 0,
   })
   day: number;
 
