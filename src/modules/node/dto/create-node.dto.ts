@@ -62,7 +62,6 @@ export class CreateBirthPlaceDto {
     example: 'jakarta',
   })
   @IsString()
-  @MinLength(3)
   @IsOptional()
   readonly city: string;
 
@@ -72,7 +71,6 @@ export class CreateBirthPlaceDto {
     example: 'indonesia',
   })
   @IsString()
-  @MinLength(3)
   @IsOptional()
   readonly country: string;
 }

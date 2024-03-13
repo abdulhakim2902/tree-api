@@ -37,6 +37,8 @@ export class NodeService {
     node.birth.day = data.birth.day;
     node.birth.month = data.birth.month;
     node.birth.year = data.birth.year;
+    node.birth.place.country = data.birth.place.country;
+    node.birth.place.city = data.birth.place.city;
 
     const updated = await node.save();
 
