@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { CloudinaryModule } from 'nestjs-cloudinary';
+import { FileModule } from './modules/file';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { CloudinaryModule } from 'nestjs-cloudinary';
     AuthModule,
     UserModule,
     NodeModule,
+    FileModule,
   ],
   controllers: [],
   providers: [],
