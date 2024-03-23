@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
 import { Gender } from 'src/enums/gender.enum';
 import { NodeName, NodeNameSchema } from './node.name.schema';
 import { NodeBirth, NodeBirthSchema } from './node.birth.schema';
@@ -14,6 +14,7 @@ import { MONTHS } from 'src/constants/month';
 import { omit } from 'lodash';
 import { NodeFamily, NodeFamilySchema } from './node.family.schema';
 import { startCase } from 'src/helper/string';
+import { File } from 'src/modules/file/file.schema';
 
 export type NodeDocument = Node & Document;
 
@@ -42,9 +43,10 @@ export class Node extends Document {
   gender: Gender;
 
   @Prop({
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: File.name,
   })
-  profileImageURL: string;
+  profileImage: File;
 
   @Prop({
     _id: false,

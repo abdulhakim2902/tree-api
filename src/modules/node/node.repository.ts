@@ -36,7 +36,7 @@ export class NodeRepository {
     let node: Node;
 
     try {
-      node = await this.node.findById(id).exec();
+      node = await this.node.findById(id).populate('profileImage').exec();
     } catch (err) {
       throw new BadRequestException(err.message);
     }

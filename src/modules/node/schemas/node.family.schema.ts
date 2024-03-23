@@ -13,6 +13,7 @@ export class NodeFamily extends Document {
   @Prop({
     type: String,
     lowercase: true,
+    trim: true,
   })
   name: string;
 }

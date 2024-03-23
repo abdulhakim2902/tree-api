@@ -11,7 +11,7 @@ import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
 import { NodeService } from './node.service';
-import { CreateNodeDto, UpdateNodeDto } from './dto';
+import { CreateNodeDto, UpdateNodeDto, UpdateNodeProfileDto } from './dto';
 import { CreateParentsDto } from './dto/create-parents.dto';
 import { CreateChildDto } from './dto/create-child.dto';
 import { Request as Req } from 'src/interfaces/request.interface';
@@ -85,5 +85,14 @@ export class NodeController {
   @Patch('/:id')
   async updateById(@Param('id') id: string, @Body() data: UpdateNodeDto) {
     return this.nodeService.updateById(id, data);
+  }
+
+  @ApiBody({ type: UpdateNodeProfileDto, isArray: false })
+  @Patch('/:id/profile')
+  async updateProfileById(
+    @Param('id') id: string,
+    @Body() data: UpdateNodeProfileDto,
+  ) {
+    return this.nodeService.updateProfileById(id, data);
   }
 }

@@ -4,6 +4,7 @@ import {
   CreateParentsDto,
   CreateChildDto,
   UpdateNodeDto,
+  UpdateNodeProfileDto,
 } from './dto';
 import { Node } from 'src/modules/node/schemas/node.schema';
 import { NodeRepository } from 'src/modules/node/node.repository';
@@ -15,6 +16,7 @@ import { PipelineStage } from 'mongoose';
 import { TreeNode, TreeNodeFamily } from 'src/interfaces/tree-node.interface';
 import { Gender } from 'src/enums/gender.enum';
 import { startCase } from 'src/helper/string';
+import { File } from '../file/file.schema';
 
 @Injectable()
 export class NodeService {
@@ -48,6 +50,15 @@ export class NodeService {
     await this.nodeRepository.updateMany(filter, update);
 
     return updated;
+  }
+
+  async updateProfileById(
+    id: string,
+    data: UpdateNodeProfileDto,
+  ): Promise<Node> {
+    const node = await this.nodeRepository.findById(id);
+    node.profileImage = data.fileId as unknown as File;
+    return node.save();
   }
 
   async createParents(id: string, data: CreateParentsDto) {
@@ -384,8 +395,23 @@ export class NodeService {
     const pipeline: PipelineStage[] = [
       match,
       {
+        $lookup: {
+          from: 'files',
+          localField: 'profileImage',
+          foreignField: '_id',
+          as: 'profileImage',
+        },
+      },
+      {
+        $unwind: {
+          path: '$profileImage',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
         $project: {
           id: { $toString: '$_id' },
+          profileImageURL: '$profileImage.url',
           gender: '$gender',
           parents: '$parents',
           siblings: '$siblings',

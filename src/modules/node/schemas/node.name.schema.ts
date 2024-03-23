@@ -7,6 +7,7 @@ export class NodeName extends Document {
     type: String,
     lowercase: true,
     required: true,
+    trim: true,
   })
   first: string;
 
@@ -14,6 +15,7 @@ export class NodeName extends Document {
     type: String,
     lowercase: true,
     required: false,
+    trim: true,
   })
   middle: string;
 
@@ -21,11 +23,12 @@ export class NodeName extends Document {
     type: String,
     lowercase: true,
     required: false,
+    trim: true,
   })
   last: string;
 
   @Prop({
-    type: [{ type: String, lowercase: true }],
+    type: [{ type: String, lowercase: true, trim: true }],
     required: false,
   })
   nicknames: string[];
