@@ -29,9 +29,9 @@ import { FileModule } from './modules/file';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         isGlobal: true,
-        cloud_name: configService.get('CLOUDNAME'),
-        api_key: configService.get('API_KEY'),
-        api_secret: configService.get('API_SECRET'),
+        cloud_name: configService.get('CLOUDINARY_CLOUDNAME'),
+        api_key: configService.get('CLOUDINARY_API_KEY'),
+        api_secret: configService.get('CLOUDINARY_API_SECRET'),
       }),
     }),
     AuthModule,
