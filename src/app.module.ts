@@ -6,6 +6,7 @@ import { NodeModule } from './modules/node';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { CloudinaryModule } from 'nestjs-cloudinary';
 
 @Module({
   imports: [
@@ -20,6 +21,16 @@ import { join } from 'path';
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get('MONGO_URI'),
         dbName: configService.get('MONGO_DATABASE'),
+      }),
+    }),
+    CloudinaryModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        isGlobal: true,
+        cloud_name: configService.get('CLOUDNAME'),
+        api_key: configService.get('API_KEY'),
+        api_secret: configService.get('API_SECRET'),
       }),
     }),
     AuthModule,
