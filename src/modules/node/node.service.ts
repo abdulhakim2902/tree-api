@@ -12,7 +12,7 @@ import { RelationType, SpouseRelationType } from 'src/enums/relation-type.enum';
 import { NodeRelation } from './schemas/node.relation.schema';
 import { intersectionWith, omit } from 'lodash';
 import { NodeFamily } from './schemas/node.family.schema';
-import { PipelineStage } from 'mongoose';
+import mongoose, { PipelineStage } from 'mongoose';
 import { TreeNode, TreeNodeFamily } from 'src/interfaces/tree-node.interface';
 import { Gender } from 'src/enums/gender.enum';
 import { startCase } from 'src/helper/string';
@@ -64,9 +64,15 @@ export class NodeService {
     id: string,
     data: UpdateNodeProfileDto,
   ): Promise<Node> {
-    const node = await this.nodeRepository.findById(id);
-    node.profileImage = data.fileId as unknown as File;
-    return node.save();
+    const update = {};
+    if (data.fileId) {
+      const profileImage = new mongoose.Types.ObjectId(data.fileId);
+      Object.assign(update, { $set: { profileImage } });
+    } else {
+      Object.assign(update, { $unset: { profileImage: '' } });
+    }
+
+    return this.nodeRepository.updateById(id, update);
   }
 
   async createParents(id: string, data: CreateParentsDto) {

@@ -38,8 +38,8 @@ export class UpdateNodeDto {
 export class UpdateNodeProfileDto {
   @ApiProperty({
     type: String,
-    required: true,
     example: '65d40e9a4bf716711a6fae7e',
   })
+  @IsOptional()
   readonly fileId: string;
 }
