@@ -419,7 +419,6 @@ export class NodeService {
       {
         $project: {
           id: { $toString: '$_id' },
-          profileImageURL: '$profileImage.url',
           gender: '$gender',
           parents: '$parents',
           siblings: '$siblings',
@@ -437,6 +436,7 @@ export class NodeService {
                 { $ifNull: ['$name.last', ''] },
               ],
             },
+            profileImageURL: '$profileImage.url',
             gender: '$gender',
             birth: '$birth',
           },

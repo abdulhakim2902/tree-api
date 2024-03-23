@@ -39,6 +39,7 @@ export type TreeNodeData = {
   fullname: string;
   gender: Gender;
   birth?: TreeNodeBirth;
+  profileImageURL?: string;
   metadata: TreeNodeMetadata;
 };
 
