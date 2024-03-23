@@ -1,6 +1,6 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { File } from './file.schema';
-import { Model } from 'mongoose';
+import { FilterQuery, Model } from 'mongoose';
 import { CreateFileDto } from './dto/create-file.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
@@ -11,6 +11,15 @@ export class FileRepository {
     try {
       const file = await this.file.create(data);
       return file;
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async find(query: FilterQuery<File>): Promise<File[]> {
+    try {
+      const files = await this.file.find(query).exec();
+      return files;
     } catch (err) {
       throw new BadRequestException(err.message);
     }

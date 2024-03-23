@@ -12,10 +12,13 @@ import { NodeService } from '../node/node.service';
 import { Node, NodeSchema } from '../node/schemas/node.schema';
 import { NodeRepository } from 'src/modules/node/node.repository';
 import { UserRepository } from '../user/user.repository';
+import { File, FileSchema } from '../file/file.schema';
+import { FileRepository } from '../file/file.repository';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
+      { name: File.name, schema: FileSchema },
       { name: User.name, schema: UserSchema },
       { name: Node.name, schema: NodeSchema },
     ]),
@@ -35,6 +38,7 @@ import { UserRepository } from '../user/user.repository';
     NodeService,
     NodeRepository,
     UserRepository,
+    FileRepository,
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
   exports: [AuthService],

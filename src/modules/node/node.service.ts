@@ -17,13 +17,21 @@ import { TreeNode, TreeNodeFamily } from 'src/interfaces/tree-node.interface';
 import { Gender } from 'src/enums/gender.enum';
 import { startCase } from 'src/helper/string';
 import { File } from '../file/file.schema';
+import { FileRepository } from '../file/file.repository';
 
 @Injectable()
 export class NodeService {
-  constructor(private readonly nodeRepository: NodeRepository) {}
+  constructor(
+    private readonly nodeRepository: NodeRepository,
+    private readonly fileRepository: FileRepository,
+  ) {}
 
   async createNode(data: CreateNodeDto): Promise<Node> {
     return this.nodeRepository.insert(data);
+  }
+
+  async nodeGalleries(id: string): Promise<File[]> {
+    return this.fileRepository.find({ publicId: new RegExp(`^${id}`) });
   }
 
   async updateById(id: string, data: UpdateNodeDto): Promise<Node> {
