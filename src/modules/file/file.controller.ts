@@ -21,7 +21,7 @@ import { FileService } from './file.service';
 export class FileController {
   constructor(private readonly fileService: FileService) {}
 
-  @Post('/upload')
+  @Post('/')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   async upload(
