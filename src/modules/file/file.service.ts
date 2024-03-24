@@ -24,6 +24,7 @@ export class FileService {
       } = await this.cloudinaryService.uploadFile(file, {
         folder: data.nodeId,
         resource_type: 'image',
+        transformation: { raw_transformation: 'w_500' },
       });
 
       return this.fileRepository.insert({ publicId, assetId, url });
