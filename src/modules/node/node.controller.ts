@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -85,6 +86,11 @@ export class NodeController {
   @Patch('/:id')
   async updateById(@Param('id') id: string, @Body() data: UpdateNodeDto) {
     return this.nodeService.updateById(id, data);
+  }
+
+  @Delete('/:id')
+  async deleteById(@Param('id') id: string) {
+    return this.nodeService.deleteById(id);
   }
 
   @ApiBody({ type: UpdateNodeProfileDto, isArray: false })

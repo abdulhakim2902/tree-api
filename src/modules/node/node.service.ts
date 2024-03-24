@@ -25,6 +25,27 @@ export class NodeService {
     return this.nodeRepository.insert(data);
   }
 
+  async deleteById(id: string) {
+    const node = await this.nodeRepository.findById(id);
+    if (node.children.length > 0) {
+      throw new UnprocessableEntityException('Node children existed');
+    }
+
+    await this.nodeRepository.deleteById(id);
+    await this.nodeRepository.updateMany(
+      {},
+      {
+        $pull: {
+          parents: { id: node._id },
+          children: { id: node._id },
+          siblings: { id: node._id },
+          spouses: { id: node._id },
+          families: { id: node._id },
+        },
+      },
+    );
+  }
+
   async updateById(id: string, data: UpdateNodeDto): Promise<Node> {
     const node = await this.nodeRepository.findById(id);
     if (node.gender !== data.gender && node.spouses.length > 0) {
@@ -492,22 +513,5 @@ export class NodeService {
 
       return omit(node, ['_id']);
     });
-  }
-
-  private async isFamily(id: string, nodeId: string): Promise<boolean> {
-    if (id === nodeId) return true;
-    const or = [];
-    or.push(
-      { $and: [{ _id: id }, { 'parents.id': nodeId }] },
-      { $and: [{ _id: id }, { 'children.id': nodeId }] },
-      { $and: [{ _id: id }, { 'spouses.id': nodeId }] },
-      { $and: [{ _id: id }, { 'siblings.id': nodeId }] },
-    );
-    const filter = { $or: or };
-    const related = await this.nodeRepository.findOne(filter);
-    if (!related) {
-      return false;
-    }
-    return true;
   }
 }

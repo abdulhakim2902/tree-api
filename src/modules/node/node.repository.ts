@@ -113,4 +113,19 @@ export class NodeRepository {
       throw new UnprocessableEntityException(err.message);
     }
   }
+
+  async deleteById(id: string) {
+    let deletedCount = 0;
+
+    try {
+      const result = await this.node.deleteOne({ _id: id }).exec();
+      deletedCount = result.deletedCount;
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+
+    if (deletedCount <= 0) {
+      throw new NotFoundException('Node not found');
+    }
+  }
 }
