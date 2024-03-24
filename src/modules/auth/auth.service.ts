@@ -42,12 +42,26 @@ export class AuthService {
       throw new UnauthorizedException('Invalid password');
     }
 
+    if (user.node) {
+      const nodeId = user.node.toString();
+      try {
+        await this.nodeService.findById(nodeId);
+      } catch {
+        await this.userService.updateById(user.id, { $unset: { node: '' } });
+        delete user.node;
+      }
+    }
+
     const payload: UserProfile = {
       id: user.id,
       username: user.username,
       email: user.email,
       nodeId: user?.node?.toString(),
     };
+
+    if (user.node) {
+      payload.nodeId = user.node.toString();
+    }
 
     const token = await this.jwtService.signAsync(payload);
     return { token };

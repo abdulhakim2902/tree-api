@@ -28,4 +28,8 @@ export class UserService {
   async findOne(filter: Record<string, any>): Promise<User> {
     return this.userRepository.findOne(filter);
   }
+
+  async updateById(id: string, update: Record<string, any>) {
+    await this.userRepository.updateOne({ _id: id }, update);
+  }
 }

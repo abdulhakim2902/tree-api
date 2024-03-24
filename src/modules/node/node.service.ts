@@ -46,6 +46,10 @@ export class NodeService {
     );
   }
 
+  async findById(id: string): Promise<Node> {
+    return this.nodeRepository.findById(id);
+  }
+
   async updateById(id: string, data: UpdateNodeDto): Promise<Node> {
     const node = await this.nodeRepository.findById(id);
     if (node.gender !== data.gender && node.spouses.length > 0) {
