@@ -2,13 +2,15 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
 import { Express } from 'express';
@@ -21,10 +23,16 @@ import { FileService } from './file.service';
 export class FileController {
   constructor(private readonly fileService: FileService) {}
 
+  @Get('/')
+  @ApiQuery({ type: String, name: 'nodeId', required: false })
+  async find(@Query('nodeId') nodeId?: string) {
+    return this.fileService.findFiles(nodeId);
+  }
+
   @Post('/')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
-  async upload(
+  async create(
     @UploadedFile() file: Express.Multer.File,
     @Body() data: UploadFileDto,
   ) {

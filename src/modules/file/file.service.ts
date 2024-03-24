@@ -12,6 +12,12 @@ export class FileService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
+  async findFiles(nodeId?: string) {
+    const query = {};
+    if (nodeId) Object.assign(query, { publicId: new RegExp(`^${nodeId}`) });
+    return this.fileRepository.find(query);
+  }
+
   async createFile(
     file: Express.Multer.File,
     data: UploadFileDto,

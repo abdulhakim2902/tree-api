@@ -32,11 +32,6 @@ export class NodeController {
     return this.nodeService.search(name, !Boolean(req?.user));
   }
 
-  @Get('/:id/galleries')
-  async galleries(@Param('id') id: string) {
-    return this.nodeService.nodeGalleries(id);
-  }
-
   @Get('/:id/root')
   async root(@Param('id') id: string, @Request() req: Req) {
     return this.nodeService.root(id, !Boolean(req?.user));
