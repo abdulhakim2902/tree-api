@@ -55,4 +55,12 @@ export class FileRepository {
       throw new NotFoundException('File not found');
     }
   }
+
+  async deleteMany(filter: FilterQuery<File>) {
+    try {
+      await this.file.deleteMany(filter).exec();
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
 }

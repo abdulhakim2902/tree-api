@@ -40,7 +40,8 @@ export class FileController {
   }
 
   @Delete('/:id')
-  async delete(@Param('id') id: string) {
-    return this.fileService.deleteFile(id);
+  @ApiQuery({ type: String, name: 'type', required: false })
+  async deleteById(@Param('id') id: string, @Query('type') type?: string) {
+    return this.fileService.deleteFile(id, type);
   }
 }
