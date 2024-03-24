@@ -44,7 +44,9 @@ export class FileService {
       const files = await this.findFiles(id);
       const publicIds = files.map((file) => file.publicId);
       await this.fileRepository.deleteMany({ publicId: { $in: publicIds } });
-      await this.cloudinaryService.cloudinary.api.delete_folder(id);
+      await this.cloudinaryService.cloudinary.api
+        .delete_folder(id)
+        .catch(console.log);
       await this.cloudinaryService.cloudinary.api.delete_all_resources({
         public_ids: publicIds,
       });
