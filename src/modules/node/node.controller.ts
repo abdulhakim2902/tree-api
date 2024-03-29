@@ -16,6 +16,7 @@ import { CreateNodeDto, UpdateNodeDto, UpdateNodeProfileDto } from './dto';
 import { CreateParentsDto } from './dto/create-parents.dto';
 import { CreateChildDto } from './dto/create-child.dto';
 import { Request as Req } from 'src/interfaces/request.interface';
+import { NodeRelative } from 'src/interfaces/tree-node.interface';
 
 @ApiBearerAuth()
 @ApiTags(Tag.NODE)
@@ -24,8 +25,8 @@ export class NodeController {
   constructor(private readonly nodeService: NodeService) {}
 
   @Get('/families')
-  async families(@Request() req: Req) {
-    return this.nodeService.families(!Boolean(req?.user));
+  async allFamilies(@Request() req: Req) {
+    return this.nodeService.allFamilies(!Boolean(req?.user));
   }
 
   @Get('/search/:name')
@@ -38,24 +39,17 @@ export class NodeController {
     return this.nodeService.root(id, !Boolean(req?.user));
   }
 
-  @Get('/:id/parents-and-children')
-  async parentsAndChildren(@Param('id') id: string) {
-    return this.nodeService.parentsAndChildren(id);
-  }
-
-  @Get('/:id/spouses-and-children')
-  async spousesAndChildren(@Param('id') id: string) {
-    return this.nodeService.spousesAndChildren(id);
-  }
-
-  @Get('/:id/spouses')
-  async spouses(@Param('id') id: string) {
-    return this.nodeService.spouses(id);
-  }
-
   @Get('/:id/families')
-  async nodeFamilies(@Param('id') id: string) {
-    return this.nodeService.nodeFamilies(id);
+  async families(@Param('id') id: string) {
+    return this.nodeService.families(id);
+  }
+
+  @Get('/:id/:relative')
+  async relative(
+    @Param('id') id: string,
+    @Param('relative') relative: NodeRelative,
+  ) {
+    return this.nodeService.relative(id, relative);
   }
 
   @ApiBody({ type: CreateParentsDto, isArray: false })

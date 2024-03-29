@@ -1,4 +1,8 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   CreateNodeDto,
   CreateParentsDto,
@@ -10,12 +14,14 @@ import { Node } from 'src/modules/node/schemas/node.schema';
 import { NodeRepository } from 'src/modules/node/node.repository';
 import { RelationType, SpouseRelationType } from 'src/enums/relation-type.enum';
 import { NodeRelation } from './schemas/node.relation.schema';
-import { intersectionWith, omit } from 'lodash';
+import { intersectionWith } from 'lodash';
 import { NodeFamily } from './schemas/node.family.schema';
 import mongoose, { PipelineStage } from 'mongoose';
-import { TreeNode, TreeNodeFamily } from 'src/interfaces/tree-node.interface';
-import { Gender } from 'src/enums/gender.enum';
-import { startCase } from 'src/helper/string';
+import {
+  NodeRelative,
+  TreeNode,
+  TreeNodeFamily,
+} from 'src/interfaces/tree-node.interface';
 
 @Injectable()
 export class NodeService {
@@ -329,88 +335,58 @@ export class NodeService {
     return { id: node.id, data: result, total: result.length, isRoot: isRoot };
   }
 
-  async parentsAndChildren(id: string) {
+  async relative(id: string, relative: NodeRelative) {
     const node = await this.nodeRepository.findById(id);
-    const parentIds = node.parents.map((parent) => parent.id);
+
+    if (!node?.[relative]) {
+      throw new BadRequestException('Relative not found');
+    }
+
+    const relativeIds = node[relative].map((node) => node.id);
     const match: PipelineStage.Match = {
       $match: {
-        $or: [
-          { _id: { $in: parentIds } },
-          { 'parents.id': { $in: parentIds } },
-        ],
+        _id: { $in: [...relativeIds, node._id] },
       },
     };
 
     const nodes = await this.treeNode(match);
 
-    return { id: node.id, data: nodes, total: nodes.length };
+    return { nodes };
   }
 
-  async spousesAndChildren(id: string) {
-    const node = await this.nodeRepository.findById(id);
-    const match: PipelineStage.Match = {
-      $match: {
-        $or: [
-          { _id: node._id },
-          { 'spouses.id': node._id },
-          { 'parents.id': node._id },
-        ],
-      },
-    };
-
-    const nodes = await this.treeNode(match);
-
-    return { id: node.id, data: nodes, total: nodes.length };
-  }
-
-  async spouses(id: string) {
-    const node = await this.nodeRepository.findById(id);
-    const nodes = await this.nodeRepository.find({
-      $or: [{ 'spouses.id': id }],
-    });
-
-    return { id: node.id, data: nodes, total: nodes.length };
-  }
-
-  async nodeFamilies(id: string) {
+  async families(id: string) {
     const node = await this.nodeRepository.findById(id);
     return { id: node.id, data: node.families, total: node.families.length };
   }
 
-  async families(isPublic = false) {
-    const project: PipelineStage.Project = {
-      $project: {
-        id: { $toString: '$_id' },
-      },
-    };
-
-    if (isPublic) {
-      Object.assign(project.$project, {
-        name: {
-          $ifNull: [{ $arrayElemAt: ['$name.nicknames', 0] }, '$name.first'],
-        },
-      });
-    } else {
-      Object.assign(project.$project, {
-        name: {
-          $concat: [
-            '$name.first',
-            ' ',
-            { $ifNull: ['$name.middle', ''] },
-            ' ',
-            { $ifNull: ['$name.last', ''] },
-          ],
-        },
-      });
-    }
-
+  async allFamilies(isPublic = false) {
     const pipeline: PipelineStage[] = [
       {
         $match: {
           families: { $size: 0 },
         },
       },
-      project,
+      {
+        $project: {
+          id: { $toString: '$_id' },
+          name: isPublic
+            ? {
+                $ifNull: [
+                  { $arrayElemAt: ['$name.nicknames', 0] },
+                  '$name.first',
+                ],
+              }
+            : {
+                $concat: [
+                  '$name.first',
+                  ' ',
+                  { $ifNull: ['$name.middle', ''] },
+                  ' ',
+                  { $ifNull: ['$name.last', ''] },
+                ],
+              },
+        },
+      },
       {
         $sort: {
           name: 1,
@@ -441,81 +417,38 @@ export class NodeService {
       {
         $project: {
           id: { $toString: '$_id' },
-          gender: '$gender',
-          parents: '$parents',
-          siblings: '$siblings',
-          children: '$children',
-          spouses: '$spouses',
+          gender: 1,
+          parents: 1,
+          siblings: 1,
+          children: 1,
+          spouses: 1,
           data: {
             id: { $toString: '$_id' },
-            name: '$name',
-            fullname: {
-              $concat: [
-                '$name.first',
-                ' ',
-                { $ifNull: ['$name.middle', ''] },
-                ' ',
-                { $ifNull: ['$name.last', ''] },
-              ],
-            },
-            profileImageURL: '$profileImage.url',
+            name: isPublic ? { first: '$name.first' } : '$name',
+            fullname: isPublic
+              ? {
+                  $ifNull: [
+                    { $arrayElemAt: ['$name.nicknames', 0] },
+                    '$name.first',
+                  ],
+                }
+              : {
+                  $concat: [
+                    '$name.first',
+                    ' ',
+                    { $ifNull: ['$name.middle', ''] },
+                    ' ',
+                    { $ifNull: ['$name.last', ''] },
+                  ],
+                },
+            profileImageURL: isPublic ? '$$REMOVE' : '$profileImage.url',
             gender: '$gender',
-            birth: '$birth',
+            birth: isPublic ? '$$REMOVE' : '$birth',
           },
         },
       },
     ];
 
-    const nodes = await this.nodeRepository.aggregate<TreeNode>(pipeline);
-    return nodes.map((node) => {
-      const { name } = node.data;
-      const { first, nicknames } = name;
-      const nickname = nicknames?.[0] ?? first;
-      const fullname = isPublic ? nickname : node.data.fullname;
-      const totalSpouses = node.spouses.filter(
-        (e) => e.type === SpouseRelationType.MARRIED,
-      ).length;
-
-      const parents = node.parents.filter((parent) => {
-        const parentId = parent.id.toString();
-        return nodes.find((node) => node.id === parentId);
-      });
-
-      const spouses = node.spouses.filter((spouse) => {
-        const spouseId = spouse.id.toString();
-        return nodes.find((node) => node.id === spouseId);
-      });
-
-      const children = node.children.filter((child) => {
-        const childId = child.id.toString();
-        return nodes.find((node) => node.id === childId);
-      });
-
-      const siblings = node.siblings.filter((sibling) => {
-        const siblingId = sibling.id.toString();
-        return nodes.find((node) => node.id === siblingId);
-      });
-
-      node.data.name = isPublic ? { first: nickname } : name;
-      node.data.fullname = startCase(fullname.replace(/\s+/g, ' ').trim());
-      node.data.birth = isPublic ? undefined : node.data.birth;
-      node.data.metadata = {
-        totalSpouses: totalSpouses,
-        maxSpouses: node.gender === Gender.MALE ? 4 : 1,
-        expandable: {
-          parents: node.parents.length != parents.length,
-          spouses: node.spouses.length != spouses.length,
-          children: node.children.length != children.length,
-          siblings: node.siblings.length != siblings.length,
-        },
-      };
-
-      node.parents = parents;
-      node.siblings = siblings;
-      node.spouses = spouses;
-      node.children = children;
-
-      return omit(node, ['_id']);
-    });
+    return this.nodeRepository.aggregate<TreeNode>(pipeline);
   }
 }

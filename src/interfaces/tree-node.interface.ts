@@ -40,7 +40,6 @@ export type TreeNodeData = {
   gender: Gender;
   birth?: TreeNodeBirth;
   profileImageURL?: string;
-  metadata: TreeNodeMetadata;
 };
 
 export type TreeNode = {
@@ -57,3 +56,5 @@ export type TreeNodeFamily = {
   id: string;
   name: string;
 };
+
+export type NodeRelative = 'parents' | 'children' | 'siblings' | 'spouses';
