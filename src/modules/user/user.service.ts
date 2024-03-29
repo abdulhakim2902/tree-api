@@ -16,9 +16,15 @@ export class UserService {
     }
   }
 
-  async me(id: string): Promise<User> {
+  async me(id: string) {
     const user = await this.userRepository.findById(id);
-    return user.populate('node');
+    return {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    };
   }
 
   async update(id: string, data: UpdateUserDto): Promise<User> {

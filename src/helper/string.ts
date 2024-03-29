@@ -1,6 +1,10 @@
 import { capitalize } from 'lodash';
 
 export function startCase(v: string) {
-  const arr = v.split(' ').map((e) => capitalize(e));
-  return arr.join(' ');
+  return v
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((e) => capitalize(e))
+    .join(' ');
 }

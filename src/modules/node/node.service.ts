@@ -359,7 +359,7 @@ export class NodeService {
     return { id: node.id, data: node.families, total: node.families.length };
   }
 
-  async allFamilies(isPublic = false) {
+  async rootFamilies(isPublic = false) {
     const pipeline: PipelineStage[] = [
       {
         $match: {
@@ -424,7 +424,16 @@ export class NodeService {
           spouses: 1,
           data: {
             id: { $toString: '$_id' },
-            name: isPublic ? { first: '$name.first' } : '$name',
+            name: isPublic
+              ? {
+                  first: {
+                    $ifNull: [
+                      { $arrayElemAt: ['$name.nicknames', 0] },
+                      '$name.first',
+                    ],
+                  },
+                }
+              : '$name',
             fullname: isPublic
               ? {
                   $ifNull: [

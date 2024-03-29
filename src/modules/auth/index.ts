@@ -7,11 +7,10 @@ import { UserService } from '../user/user.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { AuthGuard } from './auth.guard';
-import { NodeService } from '../node/node.service';
+import { AuthGuard } from './guards/auth.guard';
 import { Node, NodeSchema } from '../node/schemas/node.schema';
-import { NodeRepository } from 'src/modules/node/node.repository';
 import { UserRepository } from '../user/user.repository';
+import { RoleGuard } from './guards/role.guard';
 
 @Module({
   imports: [
@@ -32,10 +31,9 @@ import { UserRepository } from '../user/user.repository';
   providers: [
     AuthService,
     UserService,
-    NodeService,
-    NodeRepository,
     UserRepository,
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RoleGuard },
   ],
   exports: [AuthService],
 })

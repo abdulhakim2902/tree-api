@@ -1,8 +1,9 @@
 import * as bcrypt from 'bcrypt';
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { Document } from 'mongoose';
-import { Node } from '../node/schemas/node.schema';
+import { Document } from 'mongoose';
+import { startCase } from 'src/helper/string';
+import { Role } from 'src/enums/role.enum';
 
 export type UserDocument = User & Document;
 
@@ -42,20 +43,30 @@ export class User extends Document {
 
   @Prop({
     type: String,
+    required: true,
+    trim: true,
+    lowercase: true,
   })
-  profilImageURL: string;
+  name: string;
 
   @Prop({
-    type: mongoose.Schema.Types.ObjectId,
-    ref: Node.name,
+    type: String,
+    required: true,
   })
-  node: Node;
+  role: Role;
+
+  @Prop({
+    type: String,
+  })
+  profilImageURL: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.loadClass(User);
 UserSchema.pre('save', function () {
+  this.name = startCase(this.name);
+  this.role = Role.GUEST;
   if (!this.isNew) return;
   const password = this.password;
   const salt = bcrypt.genSaltSync(10);

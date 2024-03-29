@@ -32,4 +32,11 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   readonly password: string;
+
+  @ApiProperty({
+    type: String,
+    required: true,
+    example: 'john doe',
+  })
+  readonly name: string;
 }

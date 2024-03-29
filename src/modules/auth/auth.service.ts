@@ -11,20 +11,16 @@ import { AccessToken } from 'src/interfaces/access-token.interface';
 import { UserProfile } from 'src/interfaces/user-profile.interface';
 import { UserService } from '../user/user.service';
 import { User } from 'src/modules/user/user.schema';
-import { NodeService } from '../node/node.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly nodeService: NodeService,
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
   ) {}
 
   async register(data: RegisterDto): Promise<User> {
-    const node = await this.nodeService.createNode(data.profile);
     const user = await this.userService.insert(data);
-    user.node = node;
     return user.save();
   }
 
@@ -42,26 +38,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid password');
     }
 
-    if (user.node) {
-      const nodeId = user.node.toString();
-      try {
-        await this.nodeService.findById(nodeId);
-      } catch {
-        await this.userService.updateById(user.id, { $unset: { node: '' } });
-        delete user.node;
-      }
-    }
-
     const payload: UserProfile = {
       id: user.id,
-      username: user.username,
+      role: user.role,
       email: user.email,
-      nodeId: user?.node?.toString(),
+      username: user.username,
     };
-
-    if (user.node) {
-      payload.nodeId = user.node.toString();
-    }
 
     const token = await this.jwtService.signAsync(payload);
     return { token };
