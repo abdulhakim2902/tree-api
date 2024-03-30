@@ -284,6 +284,16 @@ export class NodeService {
     return this.createChild(node.parents[1].id.toString(), createChild);
   }
 
+  async samples() {
+    const nodes = await this.nodeRepository.aggregate<Node>([
+      { $sample: { size: 1 } },
+    ]);
+    if (nodes.length <= 0) return { data: [], total: 0 };
+    const node = nodes[0];
+    node.id = node._id.toString();
+    return this.root(node, true);
+  }
+
   async search(name: string, isPublic = false) {
     const names = name.replace(/\s\s+/g, '|');
     const filter = {
