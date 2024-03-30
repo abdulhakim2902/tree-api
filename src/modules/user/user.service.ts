@@ -22,6 +22,17 @@ export class UserService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
+  async me(id: string) {
+    const user = await this.userRepository.findById(id);
+    return {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    };
+  }
+
   async insert(data: CreateUserDto, token?: string): Promise<User> {
     try {
       if (token) {
@@ -45,17 +56,6 @@ export class UserService {
     } catch (err) {
       throw new BadRequestException(err.message);
     }
-  }
-
-  async me(id: string) {
-    const user = await this.userRepository.findById(id);
-    return {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    };
   }
 
   async update(id: string, data: UpdateUserDto): Promise<User> {
@@ -158,6 +158,15 @@ export class UserService {
     console.log(to, payload);
 
     // send notification to superadmin
+  }
+
+  async userInvitation(token: string): Promise<UserInvitation> {
+    const cache = await this.cacheManager.get<UserInvitation>(token);
+    if (!cache) {
+      throw new BadRequestException('Invitation not found');
+    }
+
+    return cache;
   }
 
   private generateOTP(size: number): string {

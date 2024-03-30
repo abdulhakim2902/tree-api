@@ -25,6 +25,12 @@ import { UpdateUserRoleDto } from './dto/update-role-user.dto';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @Public()
+  @Get('/invitation/:token')
+  async invitation(@Param('token') token: string) {
+    return this.userService.userInvitation(token);
+  }
+
   @Get('/me')
   async me(@Request() req: Req) {
     return this.userService.me(req?.user?.id);

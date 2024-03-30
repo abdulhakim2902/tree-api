@@ -22,4 +22,13 @@ export class UpdateUserDto {
   @MinLength(6)
   @IsOptional()
   password: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: 'john doe',
+  })
+  @IsString()
+  @IsOptional()
+  name: string;
 }
