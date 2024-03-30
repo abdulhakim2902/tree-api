@@ -10,7 +10,6 @@ import * as crypto from 'crypto';
 import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
 import { UserInvitation } from 'src/interfaces/user-invitations';
-import { UpdateUserRoleDto } from './dto/update-role-user.dto';
 
 const TTL = 60 * 60 * 1000; // 1HOUR
 
@@ -70,8 +69,8 @@ export class UserService {
     await this.userRepository.updateOne({ _id: id }, update);
   }
 
-  async updateRole(data: UpdateUserRoleDto) {
-    const cache = await this.cacheManager.get<UserInvitation>(data.token);
+  async acceptInvitation(token: string) {
+    const cache = await this.cacheManager.get<UserInvitation>(token);
     if (!cache) {
       throw new BadRequestException('Expired token');
     }
@@ -91,7 +90,7 @@ export class UserService {
 
     user.role = cache.role;
     await user.save();
-    await this.cacheManager.del(data.token);
+    await this.cacheManager.del(token);
 
     return {
       message: 'User role is updated',
@@ -125,7 +124,6 @@ export class UserService {
         token = this.generateOTP(20);
       }
 
-      console.log(token);
       let status = UserStatus.NEW_USER;
       if (user) {
         status = UserStatus.ROLE_UPDATE;
@@ -160,7 +158,7 @@ export class UserService {
     // send notification to superadmin
   }
 
-  async userInvitation(token: string): Promise<UserInvitation> {
+  async getInvitation(token: string): Promise<UserInvitation> {
     const cache = await this.cacheManager.get<UserInvitation>(token);
     if (!cache) {
       throw new BadRequestException('Invitation not found');

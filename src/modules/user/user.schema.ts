@@ -71,7 +71,6 @@ UserSchema.pre('save', function () {
   const salt = bcrypt.genSaltSync(10);
 
   this.password = bcrypt.hashSync(password, salt);
-  this.role = Role.GUEST;
 });
 
 UserSchema.pre('findOneAndUpdate', function () {
@@ -80,7 +79,6 @@ UserSchema.pre('findOneAndUpdate', function () {
     if (key === '$set') {
       for (const field in update[key]) {
         if (field === 'password') {
-          console.log(field);
           const password = update[key][field];
           const salt = bcrypt.genSaltSync(10);
 

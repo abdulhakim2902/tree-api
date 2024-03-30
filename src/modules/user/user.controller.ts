@@ -17,19 +17,12 @@ import { Roles } from 'src/decorators/role';
 import { Role } from 'src/enums/role.enum';
 import { InviteRequestUserDto } from './dto/invite-request-user.dto';
 import { Public } from 'src/decorators/public';
-import { UpdateUserRoleDto } from './dto/update-role-user.dto';
 
 @ApiBearerAuth()
 @ApiTags(Tag.USER)
 @Controller(Prefix.USER)
 export class UserController {
   constructor(private readonly userService: UserService) {}
-
-  @Public()
-  @Get('/invitation/:token')
-  async invitation(@Param('token') token: string) {
-    return this.userService.userInvitation(token);
-  }
 
   @Get('/me')
   async me(@Request() req: Req) {
@@ -63,9 +56,14 @@ export class UserController {
   }
 
   @Public()
-  @ApiBody({ type: UpdateUserRoleDto, isArray: false })
-  @Post('/role')
-  async updateRole(@Body() data: UpdateUserRoleDto) {
-    return this.userService.updateRole(data);
+  @Get('/invitation/:token')
+  async getInvitation(@Param('token') token: string) {
+    return this.userService.getInvitation(token);
+  }
+
+  @Public()
+  @Post('/invitation/:token')
+  async acceptInvitation(@Param('token') token: string) {
+    return this.userService.acceptInvitation(token);
   }
 }
