@@ -1,8 +1,8 @@
 version: '3.9'
 
 networks:
-  database:
-    name: database
+  tree:
+    name: tree
     driver: bridge
 
 services:
@@ -10,7 +10,7 @@ services:
     image: 'mongo:latest'
     container_name: 'mongo'
     networks:
-      - database
+      - tree
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=root
@@ -20,10 +20,12 @@ services:
   redis: 
     image: 'redis:latest'
     container_name: 'redis'
+    environment:
+      - REDIS_PASSWORD=root
     ports:
       - 6379:6379
     networks:
-      - database
+      - tree
 
   mongo-express:
     image: mongo-express
@@ -37,7 +39,7 @@ services:
       - ME_CONFIG_MONGODB_AUTH_PASSWORD=root
       - ME_CONFIG_BASICAUTH=false
     networks:
-      - database
+      - tree
     depends_on:
       - mongo
 
@@ -50,6 +52,6 @@ services:
     ports:
       - 8081:8081
     networks:
-      - database
+      - tree
     depends_on:
       - redis
