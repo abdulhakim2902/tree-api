@@ -1,7 +1,9 @@
-export const getRegistrationHtml = (
-  email: string,
+import { Role } from 'src/enums/role.enum';
+
+export const getInviteHtml = (
+  role: Role,
   activationLink: string,
-  appURL = '',
+  permissionList: string[],
 ) => `<body style="margin:0;">
 <!-- Embedded HTML code sent along with email begins here -->
 
@@ -14,33 +16,9 @@ export const getRegistrationHtml = (
   <div style="display: inline-block; max-width: 400px; margin: 30px;">
     <table cellspacing="0" cellpadding="0" style="color: #e4e4e4; font-family: Kanit, sans-serif;">
       <tr>
-        <td style="font-weight: 400; font-size: 30px; text-align: center;">
-          Welcome to <a href="${appURL}" target="_blank" style="color: #2dc2e3; font-weight: 300; text-decoration: none;">Family Tree</a>
-        </td>
-      </tr>
-      <tr style="height: 25px;">
-        <td colspan="2">
-          <!-- padding -->
-          &nbsp;
-        </td>
-      </tr>
-      <tr>
         <td colspan="2" style="text-align: center; padding: 0px 13px;">
           <div style="font-family: Sarabun, sans-serif; font-size: 17px">
-            To protect your account, please verify your email by clicking on the button below.
-          </div>
-        </td>
-      </tr>
-      <tr style="height: 15px;">
-        <td colspan="2">
-          <!-- padding -->
-          &nbsp;
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2">
-          <div style="border-radius: 5px; border: 1px solid #020403; background-color: #17181a; padding: 17px; color: #2dc2e3; font-weight: 300; font-size: 20px; text-align: center;">
-            ${email}
+            Admin shared a family tree with you. 
           </div>
         </td>
       </tr>
@@ -53,13 +31,37 @@ export const getRegistrationHtml = (
       <tr>
         <td colspan="2">
           <a href="${activationLink}" style="display: block; text-decoration: none; border-radius: 30px; height: 30px; background-color: #2dc2e3; padding: 12px; color: #fff; font-weight: 300; font-size: 18px; text-align: center;">
-            Confirm Email
+            View tree
           </a>
         </td>
       </tr>
       <tr>
         <td colspan="2">
-          <span style="display: block; text-align: center">Activation link valid for 1 hour</span>
+          <span style="display: block; text-align: center; margin-top: 8px">Activation link valid for 1 hour</span>
+        </td>
+      </tr>
+      <tr style="height: 15px;">
+        <td colspan="2">
+          <!-- padding -->
+          &nbsp;
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="text-align: center; padding: 0px 13px;">
+          <div style="font-family: Sarabun, sans-serif; font-size: 17px">
+            Here’s what you can do as ${
+              ['a', 'i', 'e', 'u', 'o'].includes(role[0]) ? 'an' : 'a'
+            } ${role}:
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="text-align: center">
+          ${permissionList
+            .map((e) => {
+              return `<span style="display: block; font-family: Sarabun, sans-serif; font-size: 15px"><b>+</b> ${e}</span>`;
+            })
+            .join('')}
         </td>
       </tr>
     </table>

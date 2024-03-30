@@ -31,32 +31,32 @@ export class NodeController {
     return this.nodeService.samples();
   }
 
-  @Get('/families')
   @Roles(READ)
+  @Get('/families')
   async rootFamilies() {
     return this.nodeService.rootFamilies();
   }
 
-  @Get('/search/:name')
   @Roles(READ)
+  @Get('/search/:name')
   async search(@Param('name') name: string) {
     return this.nodeService.search(name);
   }
 
-  @Get('/:id/root')
   @Roles(READ)
+  @Get('/:id/root')
   async root(@Param('id') id: string) {
     return this.nodeService.root(id);
   }
 
-  @Get('/:id/families')
   @Roles(READ)
+  @Get('/:id/families')
   async families(@Param('id') id: string) {
     return this.nodeService.families(id);
   }
 
-  @Get('/:id/:relative')
   @Roles(READ)
+  @Get('/:id/:relative')
   async relative(
     @Param('id') id: string,
     @Param('relative') relative: NodeRelative,

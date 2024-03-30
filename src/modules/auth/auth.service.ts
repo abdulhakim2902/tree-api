@@ -11,6 +11,7 @@ import { AccessToken } from 'src/interfaces/access-token.interface';
 import { UserProfile } from 'src/interfaces/user-profile.interface';
 import { UserService } from '../user/user.service';
 import { User } from 'src/modules/user/user.schema';
+import { CreateUserDto } from '../user/dto';
 
 @Injectable()
 export class AuthService {
@@ -20,8 +21,14 @@ export class AuthService {
   ) {}
 
   async register(data: RegisterDto): Promise<User> {
-    const user = await this.userService.insert(data);
-    return user.save();
+    const createUserDto = new CreateUserDto();
+    const token = data.token;
+
+    createUserDto.name = data.name;
+    createUserDto.password = data.password;
+    createUserDto.username = data.username;
+
+    return this.userService.insert(createUserDto, token);
   }
 
   async login(data: LoginDto): Promise<AccessToken> {

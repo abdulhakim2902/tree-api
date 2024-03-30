@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './modules/auth';
 import { UserModule } from './modules/user';
@@ -9,6 +10,8 @@ import { join } from 'path';
 import { CloudinaryModule } from 'nestjs-cloudinary';
 import { FileModule } from './modules/file';
 import { MailerModule } from '@nestjs-modules/mailer';
+import * as redisStore from 'cache-manager-redis-store';
+import { MailModule } from './modules/mail';
 
 @Module({
   imports: [
@@ -47,14 +50,28 @@ import { MailerModule } from '@nestjs-modules/mailer';
           },
         },
         defaults: {
-          from: `No Reply <${configService.get('SMTP_HOST')}>`,
+          from: `Family Tree <${configService.get('SMTP_EMAIL')}>`,
         },
       }),
+    }),
+    CacheModule.register({
+      isGlobal: true,
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        store: redisStore,
+        host: configService.get<string>('REDIS_HOST'),
+        port: parseInt(configService.get<string>('REDIS_PORT')),
+        auth: {
+          password: configService.get<string>('REDIS_PASSWORD'),
+        },
+      }),
+      inject: [ConfigService],
     }),
     AuthModule,
     UserModule,
     NodeModule,
     FileModule,
+    MailModule,
   ],
   controllers: [],
   providers: [],

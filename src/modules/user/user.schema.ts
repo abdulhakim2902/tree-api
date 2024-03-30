@@ -66,12 +66,12 @@ export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.loadClass(User);
 UserSchema.pre('save', function () {
   this.name = startCase(this.name);
-  this.role = Role.GUEST;
   if (!this.isNew) return;
   const password = this.password;
   const salt = bcrypt.genSaltSync(10);
 
   this.password = bcrypt.hashSync(password, salt);
+  this.role = Role.GUEST;
 });
 
 UserSchema.pre('findOneAndUpdate', function () {

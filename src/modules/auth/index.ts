@@ -11,6 +11,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { Node, NodeSchema } from '../node/schemas/node.schema';
 import { UserRepository } from '../user/user.repository';
 import { RoleGuard } from './guards/role.guard';
+import { MailService } from '../mail/mail.service';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RoleGuard } from './guards/role.guard';
   providers: [
     AuthService,
     UserService,
+    MailService,
     UserRepository,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RoleGuard },
