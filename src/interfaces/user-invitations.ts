@@ -5,7 +5,9 @@ export interface UserInvitation {
   email: string;
   role: Role;
   status: UserStatus;
+
   name?: string;
   username?: string;
   password?: string;
+  token?: string;
 }

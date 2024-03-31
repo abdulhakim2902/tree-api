@@ -1,7 +1,7 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { CreateUserDto } from './dto';
-import { User } from 'src/modules/user/user.schema';
+import { CreateUserDto } from '../dto';
+import { User } from 'src/modules/user/schemas/user.schema';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 export class UserRepository {

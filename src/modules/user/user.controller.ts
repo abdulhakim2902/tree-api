@@ -15,8 +15,12 @@ import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
 import { Roles } from 'src/decorators/role';
 import { Role } from 'src/enums/role.enum';
-import { InviteRequestUserDto } from './dto/invite-request-user.dto';
+import {
+  InviteRequestUserDto,
+  InviteRequestUserRoleDto,
+} from './dto/invite-request-user.dto';
 import { Public } from 'src/decorators/public';
+import { RequestAction } from 'src/enums/request-action';
 
 @ApiBearerAuth()
 @ApiTags(Tag.USER)
@@ -36,11 +40,29 @@ export class UserController {
     return this.userService.invites(data);
   }
 
-  @ApiBody({ type: InviteRequestUserDto, isArray: false })
+  @Roles([Role.SUPERADMIN])
+  @Get('/requests')
+  async requests() {
+    return this.userService.requests();
+  }
+
+  @ApiBody({ type: InviteRequestUserRoleDto, isArray: false })
   @Roles([Role.GUEST, Role.EDITOR, Role.CONTRIBUTOR])
-  @Post('/request')
-  async request(@Body() data: InviteRequestUserDto) {
-    return this.userService.request(data);
+  @Post('/requests')
+  async createRequest(
+    @Request() req: Req,
+    @Body() data: InviteRequestUserRoleDto,
+  ) {
+    return this.userService.createRequest(req.user.email, data);
+  }
+
+  @Roles([Role.SUPERADMIN])
+  @Post('/requests/:id/:action')
+  async handleRequest(
+    @Param('id') id: string,
+    @Param('action') action: RequestAction,
+  ) {
+    return this.userService.handleRequest(id, action);
   }
 
   @Roles([Role.SUPERADMIN])

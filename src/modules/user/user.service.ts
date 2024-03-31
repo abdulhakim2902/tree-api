@@ -1,15 +1,21 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './dto';
-import { User } from 'src/modules/user/user.schema';
-import { UserRepository } from 'src/modules/user/user.repository';
+import { User } from 'src/modules/user/schemas/user.schema';
+import { UserRepository } from 'src/modules/user/repositories/user.repository';
 import { Role } from 'src/enums/role.enum';
-import { InviteRequestUserDto } from './dto/invite-request-user.dto';
+import {
+  InviteRequestUserDto,
+  InviteRequestUserRoleDto,
+} from './dto/invite-request-user.dto';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
 import { UserInvitation } from 'src/interfaces/user-invitations';
+import { UserRequestRepository } from './repositories/user-request.repository';
+import { UserRequest } from './schemas/user-request.schema';
+import { RequestAction } from 'src/enums/request-action';
 
 const TTL = 60 * 60 * 1000; // 1HOUR
 
@@ -17,6 +23,7 @@ const TTL = 60 * 60 * 1000; // 1HOUR
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
+    private readonly userRequestRepository: UserRequestRepository,
     private readonly mailService: MailService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
@@ -74,8 +81,10 @@ export class UserService {
           status: UserStatus.REGISTRATION,
         };
 
+        const emailPayload = { token, type: 'registration' };
+
         await this.cacheManager.set(token, payload, TTL);
-        await this.mailService.sendEmailTo(to, token, 'registration');
+        await this.mailService.sendEmailTo(to, emailPayload);
         return {} as User;
       }
 
@@ -143,8 +152,6 @@ export class UserService {
   async invites(data: InviteRequestUserDto[]) {
     for (const e of data) {
       const user = await this.userRepository.findOne({ email: e.email });
-
-      // Generate unique token
       const token = await this.generateOTP();
 
       let status = UserStatus.NEW_USER;
@@ -159,8 +166,10 @@ export class UserService {
         status: status,
       };
 
+      const emailPayload = { token, type: 'invites', role: e.role };
+
       await this.cacheManager.set(token, data, TTL);
-      await this.mailService.sendEmailTo(to, token, 'invites', e.role);
+      await this.mailService.sendEmailTo(to, emailPayload);
     }
 
     return {
@@ -168,17 +177,89 @@ export class UserService {
     };
   }
 
-  async request(data: InviteRequestUserDto) {
-    const superadmin = await this.userRepository.findOne({
+  async requests(): Promise<UserRequest[]> {
+    return this.userRequestRepository.find({});
+  }
+
+  async handleRequest(id: string, action: RequestAction) {
+    if (action === RequestAction.ACCEPT) {
+      return this.acceptRequest(id);
+    }
+
+    if (action === RequestAction.REJECT) {
+      return this.rejectRequest(id);
+    }
+
+    throw new BadRequestException('Invalid handle request');
+  }
+
+  async createRequest(email: string, data: InviteRequestUserRoleDto) {
+    const user = await this.userRepository.findOne({ role: Role.SUPERADMIN });
+    if (!user) {
+      throw new BadRequestException('Admin not found');
+    }
+
+    const from = email;
+    const to = user.email;
+    const payload = {
+      email: email,
+      role: data.role,
+    };
+
+    const fromPayload = { role: data.role, email: email };
+    const toPayload = {
       role: Role.SUPERADMIN,
-    });
+      email: email,
+      additionalRole: data.role,
+    };
 
-    const to = superadmin.email;
-    const payload = data;
+    await Promise.all([
+      this.mailService.sendEmailTo(from, fromPayload),
+      this.mailService.sendEmailTo(to, toPayload),
+      this.userRequestRepository.findAndModify({ email }, payload),
+    ]);
 
-    console.log(to, payload);
+    return {
+      message: 'Request has been made',
+    };
+  }
 
-    // send notification to superadmin
+  async acceptRequest(id: string) {
+    const requests = await this.userRequestRepository.find({ id });
+    if (requests.length <= 0) {
+      throw new BadRequestException('Request not found');
+    }
+
+    const request = requests[0];
+    const user = await this.userRepository.findOne({ email: request.email });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    user.role = request.role;
+    await user.save();
+    await this.userRequestRepository.deleteMany({ id });
+
+    // TODO: send email
+
+    return {
+      message: 'Request is accepted',
+    };
+  }
+
+  async rejectRequest(id: string) {
+    const requests = await this.userRequestRepository.find({ id });
+    if (requests.length <= 0) {
+      throw new BadRequestException('Request not found');
+    }
+
+    await this.userRequestRepository.deleteMany({ id });
+
+    // TODO: send email
+
+    return {
+      message: 'Request is rejected',
+    };
   }
 
   async getInvitation(token: string): Promise<UserInvitation> {
