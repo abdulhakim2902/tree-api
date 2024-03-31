@@ -59,7 +59,7 @@ export const getRegistrationHtml = (
       </tr>
       <tr>
         <td colspan="2">
-          <span style="display: block; text-align: center">Activation link valid for 1 hour</span>
+          <span style="display: block; text-align: center; margin-top: 8px">Activation link valid for 1 hour</span>
         </td>
       </tr>
     </table>

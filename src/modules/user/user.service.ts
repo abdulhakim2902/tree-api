@@ -40,14 +40,43 @@ export class UserService {
           throw new BadRequestException('Expired token');
         }
 
-        if (cache.status !== UserStatus.NEW_USER) {
+        if (
+          ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(cache.status)
+        ) {
           throw new BadRequestException('Invalid token');
         }
 
         data.email = cache.email;
         data.role = cache.role;
+        if (cache.name) data.name = cache.name;
+        if (cache.username) data.username = cache.username;
+        if (cache.password) data.password = cache.password;
 
         await this.cacheManager.del(token);
+      } else {
+        const { email, username } = data;
+        const exist = await this.userRepository.findOne({
+          $or: [{ email }, { username }],
+        });
+
+        if (exist) {
+          throw new Error('Email/username already existed');
+        }
+
+        const to = email;
+        const token = await this.generateOTP();
+        const payload = {
+          name: data.name,
+          username: data.username,
+          password: data.password,
+          email: email,
+          role: Role.GUEST,
+          status: UserStatus.REGISTRATION,
+        };
+
+        await this.cacheManager.set(token, payload, TTL);
+        await this.mailService.sendEmailTo(to, token, 'registration');
+        return {} as User;
       }
 
       const user = await this.userRepository.insert(data);
@@ -113,16 +142,10 @@ export class UserService {
 
   async invites(data: InviteRequestUserDto[]) {
     for (const e of data) {
-      const { email } = e;
-      const user = await this.userRepository.findOne({ email });
+      const user = await this.userRepository.findOne({ email: e.email });
 
       // Generate unique token
-      let token = this.generateOTP(20);
-      while (true) {
-        const data = await this.cacheManager.get(token);
-        if (!data) break;
-        token = this.generateOTP(20);
-      }
+      const token = await this.generateOTP();
 
       let status = UserStatus.NEW_USER;
       if (user) {
@@ -167,7 +190,14 @@ export class UserService {
     return cache;
   }
 
-  private generateOTP(size: number): string {
-    return crypto.randomBytes(size).toString('hex');
+  private async generateOTP(size = 20): Promise<string> {
+    let token = crypto.randomBytes(size).toString('hex');
+    while (true) {
+      const data = await this.cacheManager.get(token);
+      if (!data) break;
+      token = crypto.randomBytes(size).toString('hex');
+    }
+
+    return token;
   }
 }

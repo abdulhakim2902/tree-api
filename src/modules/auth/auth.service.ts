@@ -27,6 +27,7 @@ export class AuthService {
     createUserDto.name = data.name;
     createUserDto.password = data.password;
     createUserDto.username = data.username;
+    createUserDto.email = data.email;
 
     return this.userService.insert(createUserDto, token);
   }
