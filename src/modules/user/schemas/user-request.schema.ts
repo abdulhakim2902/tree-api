@@ -20,7 +20,13 @@ export class UserRequest extends Document {
     type: String,
     required: true,
   })
-  role: Role;
+  currentRole: Role;
+
+  @Prop({
+    type: String,
+    required: true,
+  })
+  requestedRole: Role;
 }
 
 export const UserRequestSchema = SchemaFactory.createForClass(UserRequest);

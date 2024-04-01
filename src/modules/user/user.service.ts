@@ -203,7 +203,8 @@ export class UserService {
     const to = user.email;
     const payload = {
       email: email,
-      role: data.role,
+      currentRole: user.role,
+      requestedRole: data.role,
     };
 
     const fromPayload = { role: data.role, email: email };
@@ -225,20 +226,26 @@ export class UserService {
   }
 
   async acceptRequest(id: string) {
-    const requests = await this.userRequestRepository.find({ id });
+    const requests = await this.userRequestRepository.find({ _id: id });
     if (requests.length <= 0) {
       throw new BadRequestException('Request not found');
     }
 
     const request = requests[0];
+
     const user = await this.userRepository.findOne({ email: request.email });
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
-    user.role = request.role;
+    if (user.role === Role.SUPERADMIN) {
+      await this.userRequestRepository.deleteMany({ id });
+      throw new BadRequestException('Superadmin cannot be changed');
+    }
+
+    user.role = request.requestedRole;
     await user.save();
-    await this.userRequestRepository.deleteMany({ id });
+    await this.userRequestRepository.deleteMany({ _id: id });
 
     // TODO: send email
 
@@ -248,12 +255,12 @@ export class UserService {
   }
 
   async rejectRequest(id: string) {
-    const requests = await this.userRequestRepository.find({ id });
+    const requests = await this.userRequestRepository.find({ _id: id });
     if (requests.length <= 0) {
       throw new BadRequestException('Request not found');
     }
 
-    await this.userRequestRepository.deleteMany({ id });
+    await this.userRequestRepository.deleteMany({ _id: id });
 
     // TODO: send email
 
