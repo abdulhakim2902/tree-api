@@ -3,4 +3,5 @@ export enum Prefix {
   USER = 'users',
   NODE = 'nodes',
   FILE = 'files',
+  NOTIFICATION = 'notifications',
 }

@@ -36,8 +36,8 @@ export class UserController {
   @ApiBody({ type: InviteRequestUserDto, isArray: true })
   @Roles([Role.SUPERADMIN])
   @Post('/invites')
-  async invites(@Body() data: InviteRequestUserDto[]) {
-    return this.userService.invites(data);
+  async createInvitation(@Body() data: InviteRequestUserDto[]) {
+    return this.userService.createInvitation(data);
   }
 
   @Roles([Role.SUPERADMIN])
@@ -79,13 +79,16 @@ export class UserController {
 
   @Public()
   @Get('/invitation/:token')
-  async getInvitation(@Param('token') token: string) {
-    return this.userService.getInvitation(token);
+  async invitation(@Param('token') token: string) {
+    return this.userService.invitation(token);
   }
 
   @Public()
-  @Post('/invitation/:token')
-  async acceptInvitation(@Param('token') token: string) {
-    return this.userService.acceptInvitation(token);
+  @Post('/invitation/:token/:action')
+  async acceptInvitation(
+    @Param('token') token: string,
+    @Param('action') action: RequestAction,
+  ) {
+    return this.userService.handleInvitation(token, action);
   }
 }

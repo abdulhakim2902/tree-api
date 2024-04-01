@@ -17,12 +17,18 @@ import {
   UserRequestSchema,
 } from '../user/schemas/user-request.schema';
 import { UserRequestRepository } from '../user/repositories/user-request.repository';
+import {
+  Notification,
+  NotificationSchema,
+} from '../notification/notification.schema';
+import { NotificationRepository } from '../notification/notification.repository';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Node.name, schema: NodeSchema },
+      { name: Notification.name, schema: NotificationSchema },
       { name: UserRequest.name, schema: UserRequestSchema },
     ]),
     JwtModule.registerAsync({
@@ -41,9 +47,9 @@ import { UserRequestRepository } from '../user/repositories/user-request.reposit
     MailService,
     UserRepository,
     UserRequestRepository,
+    NotificationRepository,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RoleGuard },
   ],
-  exports: [AuthService],
 })
 export class AuthModule {}

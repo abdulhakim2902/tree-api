@@ -3,4 +3,5 @@ export enum Tag {
   USER = 'User',
   NODE = 'Node',
   FILE = 'File',
+  NOTIFICATION = 'Notification',
 }

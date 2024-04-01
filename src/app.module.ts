@@ -12,6 +12,7 @@ import { FileModule } from './modules/file';
 import { MailerModule } from '@nestjs-modules/mailer';
 import * as redisStore from 'cache-manager-redis-store';
 import { MailModule } from './modules/mail';
+import { NotificationModule } from './modules/notification';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { MailModule } from './modules/mail';
     NodeModule,
     FileModule,
     MailModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [],

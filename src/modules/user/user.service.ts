@@ -16,6 +16,10 @@ import { UserInvitation } from 'src/interfaces/user-invitations';
 import { UserRequestRepository } from './repositories/user-request.repository';
 import { UserRequest } from './schemas/user-request.schema';
 import { RequestAction } from 'src/enums/request-action';
+import { RelatedDocument } from 'src/enums/related-document.enum';
+import { NotificationType } from 'src/enums/notification-type.enum';
+import { startCase } from 'lodash';
+import { NotificationRepository } from '../notification/notification.repository';
 
 const TTL = 60 * 60 * 1000; // 1HOUR
 
@@ -24,6 +28,7 @@ export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly userRequestRepository: UserRequestRepository,
+    private readonly notificationRepository: NotificationRepository,
     private readonly mailService: MailService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
@@ -107,34 +112,6 @@ export class UserService {
     await this.userRepository.updateOne({ _id: id }, update);
   }
 
-  async acceptInvitation(token: string) {
-    const cache = await this.cacheManager.get<UserInvitation>(token);
-    if (!cache) {
-      throw new BadRequestException('Expired token');
-    }
-
-    if (cache.status !== UserStatus.ROLE_UPDATE) {
-      throw new BadRequestException('Invalid token');
-    }
-
-    const user = await this.userRepository.findOne({ email: cache.email });
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    if (user.role === Role.SUPERADMIN) {
-      throw new BadRequestException('Superadmin role cannot be changed');
-    }
-
-    user.role = cache.role;
-    await user.save();
-    await this.cacheManager.del(token);
-
-    return {
-      message: 'User role is updated',
-    };
-  }
-
   async revoke(id: string) {
     const user = await this.userRepository.findById(id);
     if (user.role === Role.SUPERADMIN) {
@@ -149,13 +126,35 @@ export class UserService {
     return updated;
   }
 
-  async invites(data: InviteRequestUserDto[]) {
+  async invitation(token: string): Promise<UserInvitation> {
+    const cache = await this.cacheManager.get<UserInvitation>(token);
+    if (!cache) {
+      throw new BadRequestException('Invitation not found');
+    }
+
+    return cache;
+  }
+
+  async handleInvitation(token: string, action: RequestAction) {
+    if (action === RequestAction.ACCEPT) {
+      return this.acceptInvitation(token);
+    }
+
+    if (action === RequestAction.REJECT) {
+      return this.rejectInvitation(token);
+    }
+
+    throw new BadRequestException('Invalid handle request');
+  }
+
+  async createInvitation(data: InviteRequestUserDto[]) {
+    const notifications = [];
     for (const e of data) {
-      const user = await this.userRepository.findOne({ email: e.email });
+      const toUser = await this.userRepository.findOne({ email: e.email });
       const token = await this.generateOTP();
 
       let status = UserStatus.NEW_USER;
-      if (user) {
+      if (toUser) {
         status = UserStatus.ROLE_UPDATE;
       }
 
@@ -170,11 +169,22 @@ export class UserService {
 
       await this.cacheManager.set(token, data, TTL);
       await this.mailService.sendEmailTo(to, emailPayload);
+
+      const notification = {
+        read: false,
+        additionalData: token,
+        type: NotificationType.INVITATION,
+        message: `Admin invited you to join the Family Tree as ${
+          ['a', 'i', 'u', 'e', 'o'].includes(e.role) ? 'an' : 'a'
+        } ${e.role}.`,
+        to: toUser._id,
+        action: false,
+      };
+
+      notifications.push(this.notificationRepository.insert(notification));
     }
 
-    return {
-      message: 'Successfully send invitations',
-    };
+    return Promise.all(notifications);
   }
 
   async requests(): Promise<UserRequest[]> {
@@ -194,16 +204,16 @@ export class UserService {
   }
 
   async createRequest(email: string, data: InviteRequestUserRoleDto) {
-    const user = await this.userRepository.findOne({ role: Role.SUPERADMIN });
-    if (!user) {
+    const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
+    if (!toUser) {
       throw new BadRequestException('Admin not found');
     }
 
     const from = email;
-    const to = user.email;
+    const to = toUser.email;
     const payload = {
       email: email,
-      currentRole: user.role,
+      currentRole: toUser.role,
       requestedRole: data.role,
     };
 
@@ -214,18 +224,31 @@ export class UserService {
       additionalRole: data.role,
     };
 
-    await Promise.all([
+    const result = await Promise.all([
       this.mailService.sendEmailTo(from, fromPayload),
       this.mailService.sendEmailTo(to, toPayload),
       this.userRequestRepository.findAndModify({ email }, payload),
     ]);
 
-    return {
-      message: 'Request has been made',
+    const fromUser = await this.userRepository.findOne({ email });
+    const notification = {
+      read: false,
+      type: NotificationType.REQUEST,
+      relatedModel: RelatedDocument.USER_REQUEST,
+      relatedModelId: result[2]._id,
+      message: `${startCase(
+        fromUser.name,
+      )} is requesting to change the role from ${fromUser.role} to ${
+        data.role
+      }.`,
+      to: toUser._id,
+      action: false,
     };
+
+    return this.notificationRepository.insert(notification);
   }
 
-  async acceptRequest(id: string) {
+  private async acceptRequest(id: string) {
     const requests = await this.userRequestRepository.find({ _id: id });
     if (requests.length <= 0) {
       throw new BadRequestException('Request not found');
@@ -233,28 +256,31 @@ export class UserService {
 
     const request = requests[0];
 
-    const user = await this.userRepository.findOne({ email: request.email });
-    if (!user) {
+    const toUser = await this.userRepository.findOne({ email: request.email });
+    if (!toUser) {
       throw new BadRequestException('User not found');
     }
 
-    if (user.role === Role.SUPERADMIN) {
-      await this.userRequestRepository.deleteMany({ id });
+    if (toUser.role === Role.SUPERADMIN) {
       throw new BadRequestException('Superadmin cannot be changed');
     }
 
-    user.role = request.requestedRole;
-    await user.save();
+    toUser.role = request.requestedRole;
+    await toUser.save();
     await this.userRequestRepository.deleteMany({ _id: id });
 
-    // TODO: send email
-
-    return {
-      message: 'Request is accepted',
+    const notification = {
+      read: false,
+      type: NotificationType.REQUEST,
+      message: `Admin approved your role changes to ${toUser.role}`,
+      to: toUser._id,
+      action: true,
     };
+
+    return this.notificationRepository.insert(notification);
   }
 
-  async rejectRequest(id: string) {
+  private async rejectRequest(id: string) {
     const requests = await this.userRequestRepository.find({ _id: id });
     if (requests.length <= 0) {
       throw new BadRequestException('Request not found');
@@ -262,20 +288,77 @@ export class UserService {
 
     await this.userRequestRepository.deleteMany({ _id: id });
 
-    // TODO: send email
+    const request = requests[0];
+    const toUser = await this.userRepository.findOne({ email: request.email });
 
-    return {
-      message: 'Request is rejected',
+    const notification = {
+      read: false,
+      type: NotificationType.REQUEST,
+      message: `Admin rejected your role changes to ${toUser.role}`,
+      to: toUser._id,
+      action: true,
     };
+
+    return this.notificationRepository.insert(notification);
   }
 
-  async getInvitation(token: string): Promise<UserInvitation> {
+  private async acceptInvitation(token: string) {
     const cache = await this.cacheManager.get<UserInvitation>(token);
     if (!cache) {
-      throw new BadRequestException('Invitation not found');
+      throw new BadRequestException('Expired token');
     }
 
-    return cache;
+    if (cache.status !== UserStatus.ROLE_UPDATE) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    const user = await this.userRepository.findOne({ email: cache.email });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (user.role === Role.SUPERADMIN) {
+      await this.cacheManager.del(token);
+      throw new BadRequestException('Superadmin role cannot be changed');
+    }
+
+    user.role = cache.role;
+    await user.save();
+    await this.cacheManager.del(token);
+
+    const notification = {
+      read: false,
+      type: NotificationType.INVITATION,
+      message: `You accepted role changes to ${user.role}`,
+      to: user._id,
+      action: true,
+    };
+
+    return this.notificationRepository.insert(notification);
+  }
+
+  private async rejectInvitation(token: string) {
+    const cache = await this.cacheManager.get<UserInvitation>(token);
+    if (!cache) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const user = await this.userRepository.findOne({ email: cache.email });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    await this.cacheManager.del(token);
+
+    const notification = {
+      read: false,
+      type: NotificationType.INVITATION,
+      message: `You rejected role changes to ${cache.role}`,
+      to: user._id,
+      action: true,
+    };
+
+    return this.notificationRepository.insert(notification);
   }
 
   private async generateOTP(size = 20): Promise<string> {
