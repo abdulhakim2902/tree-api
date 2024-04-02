@@ -17,6 +17,8 @@ import {
   NotificationSchema,
 } from '../notification/notification.schema';
 import { NotificationRepository } from '../notification/notification.repository';
+import { RedisService } from '../redis/redis.service';
+import { RedisFactory } from '../redis/redis.provider';
 
 @Module({
   imports: [
@@ -39,8 +41,10 @@ import { NotificationRepository } from '../notification/notification.repository'
     AuthService,
     UserService,
     MailService,
+    RedisService,
     UserRepository,
     NotificationRepository,
+    RedisFactory,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RoleGuard },
   ],

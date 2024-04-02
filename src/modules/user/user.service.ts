@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { User } from 'src/modules/user/user.schema';
 import { UserRepository } from 'src/modules/user/user.repository';
@@ -7,8 +7,6 @@ import {
   InviteRequestUserDto,
   InviteRequestUserRoleDto,
 } from './dto/invite-request-user.dto';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
@@ -17,16 +15,20 @@ import { RequestAction } from 'src/enums/request-action';
 import { NotificationType } from 'src/enums/notification-type.enum';
 import { startCase } from 'lodash';
 import { NotificationRepository } from '../notification/notification.repository';
+import { RedisService } from '../redis/redis.service';
+import { parse } from 'src/helper/string';
 
-const TTL = 60 * 60 * 1000; // 1HOUR
+const TTL = 60 * 60; // 1HOUR
 
 @Injectable()
 export class UserService {
+  private readonly prefix = 'user';
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly notificationRepository: NotificationRepository,
     private readonly mailService: MailService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly redisService: RedisService,
   ) {}
 
   async me(id: string) {
@@ -43,25 +45,32 @@ export class UserService {
   async insert(data: CreateUserDto, token?: string): Promise<User> {
     try {
       if (token) {
-        const cache = await this.cacheManager.get<UserInvitation>(token);
+        const cache = await this.redisService.get(this.prefix, token);
         if (!cache) {
           throw new BadRequestException('Expired token');
         }
 
+        const invitation = parse<UserInvitation>(cache);
+        if (!invitation) {
+          throw new BadRequestException('Invalid data');
+        }
+
         if (
-          ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(cache.status)
+          ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(
+            invitation.status,
+          )
         ) {
           throw new BadRequestException('Invalid token');
         }
 
-        data.email = cache.email;
-        data.role = cache.role;
-        if (cache.name) data.name = cache.name;
-        if (cache.username) data.username = cache.username;
-        if (cache.password) data.password = cache.password;
+        data.email = invitation.email;
+        data.role = invitation.role;
+        if (invitation.name) data.name = invitation.name;
+        if (invitation.username) data.username = invitation.username;
+        if (invitation.password) data.password = invitation.password;
 
-        await this.cacheManager.del(token);
-        await this.cacheManager.del(data.email);
+        await this.redisService.del(this.prefix, token);
+        await this.redisService.del(this.prefix, data.email);
       } else {
         const { email, username } = data;
         const exist = await this.userRepository.findOne({
@@ -84,9 +93,10 @@ export class UserService {
         };
 
         const emailPayload = { token, type: 'registration' };
+        const str = JSON.stringify(payload);
 
-        await this.cacheManager.set(token, payload, TTL);
-        await this.cacheManager.set(email, token, TTL);
+        await this.redisService.set(this.prefix, token, str, TTL);
+        await this.redisService.set(this.prefix, email, token, TTL);
         await this.mailService.sendEmailTo(to, emailPayload);
         return {} as User;
       }
@@ -136,12 +146,17 @@ export class UserService {
   }
 
   async invitation(token: string): Promise<UserInvitation> {
-    const cache = await this.cacheManager.get<UserInvitation>(token);
+    const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Invitation not found');
     }
 
-    return cache;
+    const data = parse<UserInvitation>(cache);
+    if (!data) {
+      throw new BadRequestException('Invitation not found');
+    }
+
+    return data;
   }
 
   async createInvitation(data: InviteRequestUserDto[]) {
@@ -164,17 +179,24 @@ export class UserService {
       if (status === UserStatus.NEW_USER) {
         const to = e.email;
         const emailPayload = { token, type: 'invites', role: e.role };
+        const str = JSON.stringify(data);
 
         await this.mailService.sendEmailTo(to, emailPayload);
-        await this.cacheManager.set(token, data, TTL);
-        await this.cacheManager.set(e.email, token, TTL);
+        await this.redisService.set(this.prefix, token, str, TTL);
+        await this.redisService.set(this.prefix, e.email, token, TTL);
       } else {
-        const currentToken = await this.cacheManager.get<string>(e.email);
+        const currentToken = await this.redisService.get(this.prefix, e.email);
         if (currentToken) {
-          data = await this.cacheManager.get<UserInvitation>(currentToken);
-          token = currentToken;
-
-          data.role = e.role;
+          const dataStr = await this.redisService.get(
+            this.prefix,
+            currentToken,
+          );
+          const dataParse = parse<UserInvitation>(dataStr);
+          if (dataParse) {
+            data = dataParse;
+            token = currentToken;
+            data.role = e.role;
+          }
         }
         const notification = {
           read: false,
@@ -187,8 +209,10 @@ export class UserService {
           action: false,
         };
 
-        await this.cacheManager.set(token, data);
-        await this.cacheManager.set(e.email, token);
+        const str = JSON.stringify(data);
+
+        await this.redisService.set(this.prefix, token, str);
+        await this.redisService.set(this.prefix, e.email, token);
 
         notifications.push(
           this.notificationRepository.findAndModify(
@@ -233,7 +257,9 @@ export class UserService {
       action: false,
     };
 
-    await this.cacheManager.set(token, payload);
+    const str = JSON.stringify(payload);
+
+    await this.redisService.set(this.prefix, token, str);
     await this.notificationRepository.insert(notification);
 
     return {
@@ -266,9 +292,14 @@ export class UserService {
   }
 
   private async acceptRequest(token: string) {
-    const request = await this.cacheManager.get<UserInvitation>(token);
-    if (!request) {
+    const cache = await this.redisService.get(this.prefix, token);
+    if (!cache) {
       throw new BadRequestException('Expired token');
+    }
+
+    const request = parse<UserInvitation>(cache);
+    if (!request) {
+      throw new BadRequestException('Request not found');
     }
 
     const toUser = await this.userRepository.findOne({ email: request.email });
@@ -291,7 +322,7 @@ export class UserService {
     };
 
     await toUser.save();
-    await this.cacheManager.del(token);
+    await this.redisService.del(this.prefix, token);
     await this.notificationRepository.insert(notification);
 
     return {
@@ -300,9 +331,14 @@ export class UserService {
   }
 
   private async rejectRequest(token: string) {
-    const request = await this.cacheManager.get<UserInvitation>(token);
-    if (!request) {
+    const cache = await this.redisService.get(this.prefix, token);
+    if (!cache) {
       throw new BadRequestException('Expired token');
+    }
+
+    const request = parse<UserInvitation>(cache);
+    if (!request) {
+      throw new BadRequestException('Request not found');
     }
 
     const toUser = await this.userRepository.findOne({ email: request.email });
@@ -314,7 +350,7 @@ export class UserService {
       action: true,
     };
 
-    await this.cacheManager.del(token);
+    await this.redisService.del(this.prefix, token);
     await this.notificationRepository.insert(notification);
 
     return {
@@ -323,29 +359,34 @@ export class UserService {
   }
 
   private async acceptInvitation(token: string) {
-    const cache = await this.cacheManager.get<UserInvitation>(token);
+    const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
     }
 
-    if (cache.status !== UserStatus.ROLE_UPDATE) {
+    const invitation = parse<UserInvitation>(cache);
+    if (!invitation) {
+      throw new BadRequestException('Invitation not found');
+    }
+
+    if (invitation.status !== UserStatus.ROLE_UPDATE) {
       throw new BadRequestException('Invalid token');
     }
 
-    const user = await this.userRepository.findOne({ email: cache.email });
+    const user = await this.userRepository.findOne({ email: invitation.email });
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
     if (user.role === Role.SUPERADMIN) {
-      await this.cacheManager.del(token);
+      await this.redisService.del(this.prefix, token);
       throw new BadRequestException('Superadmin role cannot be changed');
     }
 
-    user.role = cache.role;
+    user.role = invitation.role;
     await user.save();
-    await this.cacheManager.del(token);
-    await this.cacheManager.del(cache.email);
+    await this.redisService.del(this.prefix, token);
+    await this.redisService.del(this.prefix, invitation.email);
 
     const notification = {
       read: false,
@@ -359,23 +400,28 @@ export class UserService {
   }
 
   private async rejectInvitation(token: string) {
-    const cache = await this.cacheManager.get<UserInvitation>(token);
+    const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
     }
 
-    const user = await this.userRepository.findOne({ email: cache.email });
+    const invitation = parse<UserInvitation>(cache);
+    if (!invitation) {
+      throw new BadRequestException('Invitation not found');
+    }
+
+    const user = await this.userRepository.findOne({ email: invitation.email });
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
-    await this.cacheManager.del(token);
-    await this.cacheManager.del(cache.email);
+    await this.redisService.del(this.prefix, token);
+    await this.redisService.del(this.prefix, invitation.email);
 
     const notification = {
       read: false,
       type: NotificationType.INVITATION,
-      message: `You rejected role changes to ${cache.role}`,
+      message: `You rejected role changes to ${invitation.role}`,
       to: user._id,
       action: true,
     };
@@ -386,7 +432,7 @@ export class UserService {
   private async generateOTP(size = 20): Promise<string> {
     let token = crypto.randomBytes(size).toString('hex');
     while (true) {
-      const data = await this.cacheManager.get(token);
+      const data = await this.redisService.get(this.prefix, token);
       if (!data) break;
       token = crypto.randomBytes(size).toString('hex');
     }

@@ -8,3 +8,12 @@ export function startCase(v: string) {
     .map((e) => capitalize(e))
     .join(' ');
 }
+
+export function parse<T>(data: string): T | null {
+  try {
+    const result = JSON.parse(data);
+    return result as T;
+  } catch {
+    return null;
+  }
+}

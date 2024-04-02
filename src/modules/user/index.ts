@@ -10,6 +10,8 @@ import {
   NotificationSchema,
 } from '../notification/notification.schema';
 import { NotificationRepository } from '../notification/notification.repository';
+import { RedisService } from '../redis/redis.service';
+import { RedisFactory } from '../redis/redis.provider';
 
 @Module({
   imports: [
@@ -19,6 +21,13 @@ import { NotificationRepository } from '../notification/notification.repository'
     ]),
   ],
   controllers: [UserController],
-  providers: [UserService, UserRepository, NotificationRepository, MailService],
+  providers: [
+    UserService,
+    UserRepository,
+    NotificationRepository,
+    MailService,
+    RedisService,
+    RedisFactory,
+  ],
 })
 export class UserModule {}
