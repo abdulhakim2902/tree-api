@@ -28,12 +28,22 @@ export class NotificationRepository {
     }
   }
 
+  async count(filter: FilterQuery<Notification>): Promise<{ count: number }> {
+    try {
+      const total = await this.notification.count(filter);
+      return { count: total };
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
   async updateMany(
     filter: FilterQuery<Notification>,
     data: Record<string, any>,
   ) {
     try {
-      await this.notification.updateMany(filter, data);
+      const result = await this.notification.updateMany(filter, data);
+      return result;
     } catch (err) {
       throw new BadRequestException(err.message);
     }

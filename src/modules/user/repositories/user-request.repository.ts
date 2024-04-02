@@ -33,6 +33,7 @@ export class UserRequestRepository {
     try {
       const request = await this.userRequest.findOneAndUpdate(filter, update, {
         upsert: true,
+        new: true,
       });
 
       return request;
