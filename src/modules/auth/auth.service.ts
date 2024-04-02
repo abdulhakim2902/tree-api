@@ -10,7 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { AccessToken } from 'src/interfaces/access-token.interface';
 import { UserProfile } from 'src/interfaces/user-profile.interface';
 import { UserService } from '../user/user.service';
-import { User } from 'src/modules/user/schemas/user.schema';
+import { User } from 'src/modules/user/user.schema';
 import { CreateUserDto } from '../user/dto';
 
 @Injectable()

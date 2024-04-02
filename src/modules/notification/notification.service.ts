@@ -48,14 +48,14 @@ export class NotificationService {
     const filter = {
       $or: [
         { _id: new mongoose.Types.ObjectId(notificationId) },
-        { relatedModelId: notifications[0].relatedModelId },
+        { referenceId: notifications[0].referenceId },
       ],
       to: new mongoose.Types.ObjectId(to),
     };
 
-    if (notifications[0].relatedModelId) {
+    if (notifications[0].referenceId) {
       Object.assign(filter, {
-        relatedModelId: notifications[0].relatedModelId,
+        referenceId: notifications[0].referenceId,
       });
     } else {
       Object.assign(filter, {

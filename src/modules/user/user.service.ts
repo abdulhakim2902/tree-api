@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './dto';
-import { User } from 'src/modules/user/schemas/user.schema';
-import { UserRepository } from 'src/modules/user/repositories/user.repository';
+import { User } from 'src/modules/user/user.schema';
+import { UserRepository } from 'src/modules/user/user.repository';
 import { Role } from 'src/enums/role.enum';
 import {
   InviteRequestUserDto,
@@ -13,10 +13,7 @@ import * as crypto from 'crypto';
 import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
 import { UserInvitation } from 'src/interfaces/user-invitations';
-import { UserRequestRepository } from './repositories/user-request.repository';
-import { UserRequest } from './schemas/user-request.schema';
 import { RequestAction } from 'src/enums/request-action';
-import { RelatedDocument } from 'src/enums/related-document.enum';
 import { NotificationType } from 'src/enums/notification-type.enum';
 import { startCase } from 'lodash';
 import { NotificationRepository } from '../notification/notification.repository';
@@ -27,7 +24,6 @@ const TTL = 60 * 60 * 1000; // 1HOUR
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly userRequestRepository: UserRequestRepository,
     private readonly notificationRepository: NotificationRepository,
     private readonly mailService: MailService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -65,6 +61,7 @@ export class UserService {
         if (cache.password) data.password = cache.password;
 
         await this.cacheManager.del(token);
+        await this.cacheManager.del(data.email);
       } else {
         const { email, username } = data;
         const exist = await this.userRepository.findOne({
@@ -89,11 +86,25 @@ export class UserService {
         const emailPayload = { token, type: 'registration' };
 
         await this.cacheManager.set(token, payload, TTL);
+        await this.cacheManager.set(email, token, TTL);
         await this.mailService.sendEmailTo(to, emailPayload);
         return {} as User;
       }
 
       const user = await this.userRepository.insert(data);
+      const notification = {
+        read: false,
+        referenceId: token,
+        type: NotificationType.INVITATION,
+        message: `Welcome to the Family Tree. You are joining the tree as ${
+          ['a', 'i', 'u', 'e', 'o'].includes(user.role) ? 'an' : 'a'
+        } ${user.role}.`,
+        to: user._id,
+        action: false,
+      };
+
+      await this.notificationRepository.insert(notification);
+
       return user;
     } catch (err) {
       throw new BadRequestException(err.message);
@@ -121,8 +132,6 @@ export class UserService {
     user.role = Role.GUEST;
     const updated = await user.save();
 
-    // TODO: send mail information
-
     return updated;
   }
 
@@ -133,6 +142,103 @@ export class UserService {
     }
 
     return cache;
+  }
+
+  async createInvitation(data: InviteRequestUserDto[]) {
+    const notifications = [];
+    for (const e of data) {
+      const toUser = await this.userRepository.findOne({ email: e.email });
+
+      let token = await this.generateOTP();
+      let status = UserStatus.NEW_USER;
+      if (toUser) {
+        status = UserStatus.ROLE_UPDATE;
+      }
+
+      let data = {
+        email: e.email,
+        role: e.role,
+        status: status,
+      } as UserInvitation;
+
+      if (status === UserStatus.NEW_USER) {
+        const to = e.email;
+        const emailPayload = { token, type: 'invites', role: e.role };
+
+        await this.mailService.sendEmailTo(to, emailPayload);
+        await this.cacheManager.set(token, data, TTL);
+        await this.cacheManager.set(e.email, token, TTL);
+      } else {
+        const currentToken = await this.cacheManager.get<string>(e.email);
+        if (currentToken) {
+          data = await this.cacheManager.get<UserInvitation>(currentToken);
+          token = currentToken;
+
+          data.role = e.role;
+        }
+        const notification = {
+          read: false,
+          referenceId: token,
+          type: NotificationType.INVITATION,
+          message: `Admin invited you to join the Family Tree as ${
+            ['a', 'i', 'u', 'e', 'o'].includes(e.role) ? 'an' : 'a'
+          } ${e.role}.`,
+          to: toUser._id,
+          action: false,
+        };
+
+        await this.cacheManager.set(token, data);
+        await this.cacheManager.set(e.email, token);
+
+        notifications.push(
+          this.notificationRepository.findAndModify(
+            { referenceId: token },
+            notification,
+          ),
+        );
+      }
+    }
+
+    await Promise.all(notifications);
+
+    return {
+      message: 'Successfully create invitation',
+    };
+  }
+
+  async createRequest(email: string, data: InviteRequestUserRoleDto) {
+    const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
+    if (!toUser) {
+      throw new BadRequestException('Admin not found');
+    }
+
+    const fromUser = await this.userRepository.findOne({ email });
+    const token = await this.generateOTP();
+    const payload = {
+      email: email,
+      role: data.role,
+      status: UserStatus.ROLE_REQUEST,
+    };
+
+    const notification = {
+      read: false,
+      type: NotificationType.REQUEST,
+      referenceId: token,
+      message: `${startCase(
+        fromUser.name,
+      )} is requesting to change the role from ${fromUser.role} to ${
+        data.role
+      }.`,
+      to: toUser._id,
+      action: false,
+    };
+
+    await this.cacheManager.set(token, payload);
+    await this.notificationRepository.insert(notification);
+
+    return {
+      message: 'Successfully create request',
+    };
   }
 
   async handleInvitation(token: string, action: RequestAction) {
@@ -147,114 +253,23 @@ export class UserService {
     throw new BadRequestException('Invalid handle request');
   }
 
-  async createInvitation(data: InviteRequestUserDto[]) {
-    const notifications = [];
-    for (const e of data) {
-      const toUser = await this.userRepository.findOne({ email: e.email });
-      const token = await this.generateOTP();
-
-      let status = UserStatus.NEW_USER;
-      if (toUser) {
-        status = UserStatus.ROLE_UPDATE;
-      }
-
-      const to = e.email;
-      const data = {
-        email: e.email,
-        role: e.role,
-        status: status,
-      };
-
-      const emailPayload = { token, type: 'invites', role: e.role };
-
-      await this.cacheManager.set(token, data, TTL);
-      await this.mailService.sendEmailTo(to, emailPayload);
-
-      const notification = {
-        read: false,
-        additionalData: token,
-        type: NotificationType.INVITATION,
-        message: `Admin invited you to join the Family Tree as ${
-          ['a', 'i', 'u', 'e', 'o'].includes(e.role) ? 'an' : 'a'
-        } ${e.role}.`,
-        to: toUser._id,
-        action: false,
-      };
-
-      notifications.push(this.notificationRepository.insert(notification));
-    }
-
-    return Promise.all(notifications);
-  }
-
-  async requests(): Promise<UserRequest[]> {
-    return this.userRequestRepository.find({});
-  }
-
-  async handleRequest(id: string, action: RequestAction) {
+  async handleRequest(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
-      return this.acceptRequest(id);
+      return this.acceptRequest(token);
     }
 
     if (action === RequestAction.REJECT) {
-      return this.rejectRequest(id);
+      return this.rejectRequest(token);
     }
 
     throw new BadRequestException('Invalid handle request');
   }
 
-  async createRequest(email: string, data: InviteRequestUserRoleDto) {
-    const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
-    if (!toUser) {
-      throw new BadRequestException('Admin not found');
+  private async acceptRequest(token: string) {
+    const request = await this.cacheManager.get<UserInvitation>(token);
+    if (!request) {
+      throw new BadRequestException('Expired token');
     }
-
-    const from = email;
-    const to = toUser.email;
-    const payload = {
-      email: email,
-      currentRole: toUser.role,
-      requestedRole: data.role,
-    };
-
-    const fromPayload = { role: data.role, email: email };
-    const toPayload = {
-      role: Role.SUPERADMIN,
-      email: email,
-      additionalRole: data.role,
-    };
-
-    const result = await Promise.all([
-      this.mailService.sendEmailTo(from, fromPayload),
-      this.mailService.sendEmailTo(to, toPayload),
-      this.userRequestRepository.findAndModify({ email }, payload),
-    ]);
-
-    const fromUser = await this.userRepository.findOne({ email });
-    const notification = {
-      read: false,
-      type: NotificationType.REQUEST,
-      relatedModel: RelatedDocument.USER_REQUEST,
-      relatedModelId: result[2]._id,
-      message: `${startCase(
-        fromUser.name,
-      )} is requesting to change the role from ${fromUser.role} to ${
-        data.role
-      }.`,
-      to: toUser._id,
-      action: false,
-    };
-
-    return this.notificationRepository.insert(notification);
-  }
-
-  private async acceptRequest(id: string) {
-    const requests = await this.userRequestRepository.find({ _id: id });
-    if (requests.length <= 0) {
-      throw new BadRequestException('Request not found');
-    }
-
-    const request = requests[0];
 
     const toUser = await this.userRepository.findOne({ email: request.email });
     if (!toUser) {
@@ -265,32 +280,32 @@ export class UserService {
       throw new BadRequestException('Superadmin cannot be changed');
     }
 
-    toUser.role = request.requestedRole;
-    await toUser.save();
-    await this.userRequestRepository.deleteMany({ _id: id });
+    toUser.role = request.role;
 
     const notification = {
       read: false,
       type: NotificationType.REQUEST,
-      message: `Admin approved your role changes to ${toUser.role}`,
+      message: `Admin approved your role changes to ${toUser.role}. Please sign in again to make changes.`,
       to: toUser._id,
       action: true,
     };
 
-    return this.notificationRepository.insert(notification);
+    await toUser.save();
+    await this.cacheManager.del(token);
+    await this.notificationRepository.insert(notification);
+
+    return {
+      message: 'Successfully accept request',
+    };
   }
 
-  private async rejectRequest(id: string) {
-    const requests = await this.userRequestRepository.find({ _id: id });
-    if (requests.length <= 0) {
-      throw new BadRequestException('Request not found');
+  private async rejectRequest(token: string) {
+    const request = await this.cacheManager.get<UserInvitation>(token);
+    if (!request) {
+      throw new BadRequestException('Expired token');
     }
 
-    await this.userRequestRepository.deleteMany({ _id: id });
-
-    const request = requests[0];
     const toUser = await this.userRepository.findOne({ email: request.email });
-
     const notification = {
       read: false,
       type: NotificationType.REQUEST,
@@ -299,7 +314,12 @@ export class UserService {
       action: true,
     };
 
-    return this.notificationRepository.insert(notification);
+    await this.cacheManager.del(token);
+    await this.notificationRepository.insert(notification);
+
+    return {
+      message: 'Successfully reject request',
+    };
   }
 
   private async acceptInvitation(token: string) {
@@ -325,6 +345,7 @@ export class UserService {
     user.role = cache.role;
     await user.save();
     await this.cacheManager.del(token);
+    await this.cacheManager.del(cache.email);
 
     const notification = {
       read: false,
@@ -349,6 +370,7 @@ export class UserService {
     }
 
     await this.cacheManager.del(token);
+    await this.cacheManager.del(cache.email);
 
     const notification = {
       read: false,

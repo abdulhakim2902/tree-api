@@ -6,7 +6,7 @@ import { Prefix } from 'src/enums/controller-prefix.enum';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Public } from 'src/decorators/public';
 import { AccessToken } from 'src/interfaces/access-token.interface';
-import { User } from 'src/modules/user/schemas/user.schema';
+import { User } from 'src/modules/user/user.schema';
 
 @Public()
 @ApiTags(Tag.AUTH)

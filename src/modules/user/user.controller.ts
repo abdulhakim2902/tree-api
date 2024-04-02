@@ -40,12 +40,6 @@ export class UserController {
     return this.userService.createInvitation(data);
   }
 
-  @Roles([Role.SUPERADMIN])
-  @Get('/requests')
-  async requests() {
-    return this.userService.requests();
-  }
-
   @ApiBody({ type: InviteRequestUserRoleDto, isArray: false })
   @Roles([Role.GUEST, Role.EDITOR, Role.CONTRIBUTOR])
   @Post('/requests')
@@ -57,12 +51,12 @@ export class UserController {
   }
 
   @Roles([Role.SUPERADMIN])
-  @Post('/requests/:id/:action')
+  @Post('/requests/:token/:action')
   async handleRequest(
-    @Param('id') id: string,
+    @Param('token') token: string,
     @Param('action') action: RequestAction,
   ) {
-    return this.userService.handleRequest(id, action);
+    return this.userService.handleRequest(token, action);
   }
 
   @Roles([Role.SUPERADMIN])

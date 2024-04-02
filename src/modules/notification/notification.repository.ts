@@ -21,7 +21,10 @@ export class NotificationRepository {
 
   async find(filter: FilterQuery<Notification>): Promise<Notification[]> {
     try {
-      const notifications = await this.notification.find(filter);
+      const notifications = await this.notification
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .exec();
       return notifications;
     } catch (err) {
       throw new BadRequestException(err.message);
@@ -30,7 +33,7 @@ export class NotificationRepository {
 
   async count(filter: FilterQuery<Notification>): Promise<{ count: number }> {
     try {
-      const total = await this.notification.count(filter);
+      const total = await this.notification.count(filter).exec();
       return { count: total };
     } catch (err) {
       throw new BadRequestException(err.message);
@@ -42,8 +45,24 @@ export class NotificationRepository {
     data: Record<string, any>,
   ) {
     try {
-      const result = await this.notification.updateMany(filter, data);
+      const result = await this.notification.updateMany(filter, data).exec();
       return result;
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async findAndModify(
+    filter: FilterQuery<Notification>,
+    update: Record<string, any>,
+  ): Promise<Notification> {
+    try {
+      const request = await this.notification.findOneAndUpdate(filter, update, {
+        upsert: true,
+        new: true,
+      });
+
+      return request;
     } catch (err) {
       throw new BadRequestException(err.message);
     }
