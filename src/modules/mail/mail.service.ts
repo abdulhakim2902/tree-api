@@ -67,7 +67,7 @@ export class MailService {
     if (type === 'registration') {
       const appURL = this.config.get<string>('APP_URL');
       const inviteLink = `${appURL}/?token=${data.token}`;
-      return getRegistrationHtml(data.to, inviteLink, appURL);
+      return getRegistrationHtml(data.email, inviteLink, appURL);
     }
 
     if (type === 'invites') {

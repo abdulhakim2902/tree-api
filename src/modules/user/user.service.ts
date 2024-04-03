@@ -44,34 +44,7 @@ export class UserService {
 
   async insert(data: CreateUserDto, token?: string): Promise<User> {
     try {
-      if (token) {
-        const cache = await this.redisService.get(this.prefix, token);
-        if (!cache) {
-          throw new BadRequestException('Expired token');
-        }
-
-        const invitation = parse<UserInvitation>(cache);
-        if (!invitation) {
-          throw new BadRequestException('Invalid data');
-        }
-
-        if (
-          ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(
-            invitation.status,
-          )
-        ) {
-          throw new BadRequestException('Invalid token');
-        }
-
-        data.email = invitation.email;
-        data.role = invitation.role;
-        if (invitation.name) data.name = invitation.name;
-        if (invitation.username) data.username = invitation.username;
-        if (invitation.password) data.password = invitation.password;
-
-        await this.redisService.del(this.prefix, token);
-        await this.redisService.del(this.prefix, data.email);
-      } else {
+      if (!token) {
         const { email, username } = data;
         const exist = await this.userRepository.findOne({
           $or: [{ email }, { username }],
@@ -92,7 +65,7 @@ export class UserService {
           status: UserStatus.REGISTRATION,
         };
 
-        const emailPayload = { token, type: 'registration' };
+        const emailPayload = { token, type: 'registration', email };
         const str = JSON.stringify(payload);
 
         await this.redisService.set(this.prefix, token, str, TTL);
@@ -101,10 +74,46 @@ export class UserService {
         return {} as User;
       }
 
+      const cache = await this.redisService.get(this.prefix, token);
+      if (!cache) {
+        throw new BadRequestException('Expired token');
+      }
+
+      const invitation = parse<UserInvitation>(cache);
+      if (!invitation) {
+        throw new BadRequestException('Invalid data');
+      }
+
+      if (
+        ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(
+          invitation.status,
+        )
+      ) {
+        throw new BadRequestException('Invalid token');
+      }
+
+      data.email = invitation.email;
+      data.role = invitation.role;
+      if (invitation.name) data.name = invitation.name;
+      if (invitation.username) data.username = invitation.username;
+      if (invitation.password) data.password = invitation.password;
+
+      const { email, username } = data;
+
+      const exist = await this.userRepository.findOne({
+        $or: [{ email: email }, { username: username }],
+      });
+
+      if (exist) {
+        throw new Error('Email/username already existed');
+      }
+
+      await this.redisService.del(this.prefix, token);
+      await this.redisService.del(this.prefix, data.email);
+
       const user = await this.userRepository.insert(data);
       const notification = {
         read: false,
-        referenceId: token,
         type: NotificationType.INVITATION,
         message: `Welcome to the Family Tree. You are joining the tree as ${
           ['a', 'i', 'u', 'e', 'o'].includes(user.role) ? 'an' : 'a'
@@ -254,7 +263,7 @@ export class UserService {
         data.role
       }.`,
       to: toUser._id,
-      action: false,
+      action: true,
     };
 
     const str = JSON.stringify(payload);
@@ -318,7 +327,7 @@ export class UserService {
       type: NotificationType.REQUEST,
       message: `Admin approved your role changes to ${toUser.role}. Please sign in again to make changes.`,
       to: toUser._id,
-      action: true,
+      action: false,
     };
 
     await toUser.save();
@@ -327,7 +336,7 @@ export class UserService {
     await this.notificationRepository.insert(notification);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' }, action: true, read: true },
+      { $unset: { referenceId: '' }, action: false, read: true },
     );
 
     return {
@@ -352,14 +361,14 @@ export class UserService {
       type: NotificationType.REQUEST,
       message: `Admin rejected your role changes to ${toUser.role}`,
       to: toUser._id,
-      action: true,
+      action: false,
     };
 
     await this.redisService.del(this.prefix, token);
     await this.notificationRepository.insert(notification);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' }, action: true, read: true },
+      { $unset: { referenceId: '' }, action: false, read: true },
     );
 
     return {
@@ -400,7 +409,7 @@ export class UserService {
     await this.redisService.del('auth', user.id);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' }, action: true, read: true },
+      { $unset: { referenceId: '' }, action: false, read: true },
     );
 
     const notification = {
@@ -408,7 +417,7 @@ export class UserService {
       type: NotificationType.INVITATION,
       message: `You accepted role changes to ${user.role}`,
       to: user._id,
-      action: true,
+      action: false,
     };
 
     return this.notificationRepository.insert(notification);
@@ -434,7 +443,7 @@ export class UserService {
     await this.redisService.del(this.prefix, invitation.email);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' }, action: true, read: true },
+      { $unset: { referenceId: '' }, action: false, read: true },
     );
 
     const notification = {
@@ -442,7 +451,7 @@ export class UserService {
       type: NotificationType.INVITATION,
       message: `You rejected role changes to ${invitation.role}`,
       to: user._id,
-      action: true,
+      action: false,
     };
 
     return this.notificationRepository.insert(notification);
