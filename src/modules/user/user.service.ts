@@ -324,6 +324,10 @@ export class UserService {
     await toUser.save();
     await this.redisService.del(this.prefix, token);
     await this.notificationRepository.insert(notification);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' } },
+    );
 
     return {
       message: 'Successfully accept request',
@@ -352,6 +356,10 @@ export class UserService {
 
     await this.redisService.del(this.prefix, token);
     await this.notificationRepository.insert(notification);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' } },
+    );
 
     return {
       message: 'Successfully reject request',
@@ -384,9 +392,14 @@ export class UserService {
     }
 
     user.role = invitation.role;
+
     await user.save();
     await this.redisService.del(this.prefix, token);
     await this.redisService.del(this.prefix, invitation.email);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' } },
+    );
 
     const notification = {
       read: false,
@@ -417,6 +430,10 @@ export class UserService {
 
     await this.redisService.del(this.prefix, token);
     await this.redisService.del(this.prefix, invitation.email);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' } },
+    );
 
     const notification = {
       read: false,
