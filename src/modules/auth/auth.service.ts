@@ -12,12 +12,16 @@ import { UserProfile } from 'src/interfaces/user-profile.interface';
 import { UserService } from '../user/user.service';
 import { User } from 'src/modules/user/user.schema';
 import { CreateUserDto } from '../user/dto';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class AuthService {
+  private readonly prefix = 'auth';
+
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly redisService: RedisService,
   ) {}
 
   async register(data: RegisterDto): Promise<User> {
