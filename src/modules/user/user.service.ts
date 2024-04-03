@@ -215,7 +215,7 @@ export class UserService {
             ['a', 'i', 'u', 'e', 'o'].includes(e.role) ? 'an' : 'a'
           } ${e.role}.`,
           to: toUser._id,
-          action: false,
+          action: true,
         };
 
         const str = JSON.stringify(data);
@@ -225,7 +225,7 @@ export class UserService {
 
         notifications.push(
           this.notificationRepository.findAndModify(
-            { referenceId: token },
+            { referenceId: token, action: true },
             notification,
           ),
         );
