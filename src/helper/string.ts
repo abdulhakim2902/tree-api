@@ -1,4 +1,5 @@
 import { capitalize } from 'lodash';
+import * as crypto from 'crypto';
 
 export function startCase(v: string) {
   return v
@@ -16,4 +17,8 @@ export function parse<T>(data: string): T | null {
   } catch {
     return null;
   }
+}
+
+export function generateRandomString(size = 20): string {
+  return crypto.randomBytes(size).toString('hex');
 }

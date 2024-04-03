@@ -13,16 +13,22 @@ import { UserService } from '../user/user.service';
 import { User } from 'src/modules/user/user.schema';
 import { CreateUserDto } from '../user/dto';
 import { RedisService } from '../redis/redis.service';
+import { ConfigService } from '@nestjs/config';
+import { generateRandomString } from 'src/helper/string';
 
 @Injectable()
 export class AuthService {
   private readonly prefix = 'auth';
+  private readonly expires = 24 * 60 * 60;
+  private readonly configService: ConfigService;
 
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
-  ) {}
+  ) {
+    this.configService = new ConfigService();
+  }
 
   async register(data: RegisterDto): Promise<User> {
     const createUserDto = new CreateUserDto();
@@ -57,7 +63,19 @@ export class AuthService {
       username: user.username,
     };
 
-    const token = await this.jwtService.signAsync(payload);
-    return { token };
+    const envSecret = this.configService.get<string>('JWT_SECRET');
+    const randSecret = generateRandomString();
+    const secret = envSecret + randSecret;
+    const sessionToken = await this.jwtService.signAsync(payload, { secret });
+    const cacheData = { id: user.id, secret: randSecret, token: sessionToken };
+
+    await this.redisService.set(
+      this.prefix,
+      user.id,
+      JSON.stringify(cacheData),
+      this.expires,
+    );
+
+    return { token: sessionToken };
   }
 }

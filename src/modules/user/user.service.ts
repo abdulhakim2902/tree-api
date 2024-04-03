@@ -323,10 +323,11 @@ export class UserService {
 
     await toUser.save();
     await this.redisService.del(this.prefix, token);
+    await this.redisService.del('auth', toUser.id);
     await this.notificationRepository.insert(notification);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' } },
+      { $unset: { referenceId: '' }, action: true, read: true },
     );
 
     return {
@@ -358,7 +359,7 @@ export class UserService {
     await this.notificationRepository.insert(notification);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' } },
+      { $unset: { referenceId: '' }, action: true, read: true },
     );
 
     return {
@@ -396,9 +397,10 @@ export class UserService {
     await user.save();
     await this.redisService.del(this.prefix, token);
     await this.redisService.del(this.prefix, invitation.email);
+    await this.redisService.del('auth', user.id);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' } },
+      { $unset: { referenceId: '' }, action: true, read: true },
     );
 
     const notification = {
@@ -432,7 +434,7 @@ export class UserService {
     await this.redisService.del(this.prefix, invitation.email);
     await this.notificationRepository.updateMany(
       { referenceId: token },
-      { $unset: { referenceId: '' } },
+      { $unset: { referenceId: '' }, action: true, read: true },
     );
 
     const notification = {
