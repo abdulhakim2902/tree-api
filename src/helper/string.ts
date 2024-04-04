@@ -22,3 +22,7 @@ export function parse<T>(data: string): T | null {
 export function generateRandomString(size = 20): string {
   return crypto.randomBytes(size).toString('hex');
 }
+
+export function isVowel(str: string): string {
+  return ['a', 'i', 'u', 'e', 'o'].includes(str[0].toLowerCase()) ? 'an' : 'a';
+}

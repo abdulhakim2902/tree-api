@@ -16,7 +16,7 @@ import { NotificationType } from 'src/enums/notification-type.enum';
 import { startCase } from 'lodash';
 import { NotificationRepository } from '../notification/notification.repository';
 import { RedisService } from '../redis/redis.service';
-import { parse } from 'src/helper/string';
+import { isVowel, parse } from 'src/helper/string';
 
 const TTL = 60 * 60; // 1HOUR
 
@@ -115,9 +115,9 @@ export class UserService {
       const notification = {
         read: false,
         type: NotificationType.INVITATION,
-        message: `Welcome to the Family Tree. You are joining the tree as ${
-          ['a', 'i', 'u', 'e', 'o'].includes(user.role) ? 'an' : 'a'
-        } ${user.role}.`,
+        message: `Welcome to the <b>Family Tree</b>. You are joining the tree as ${isVowel(
+          user.role,
+        )} <b>${user.role}</b>.`,
         to: user._id,
         action: false,
       };
@@ -211,9 +211,9 @@ export class UserService {
           read: false,
           referenceId: token,
           type: NotificationType.INVITATION,
-          message: `Admin invited you to join the Family Tree as ${
-            ['a', 'i', 'u', 'e', 'o'].includes(e.role) ? 'an' : 'a'
-          } ${e.role}.`,
+          message: `Admin invited you to join the <b>Family Tree</b> as ${
+            isVowel(e.role) ? 'an' : 'a'
+          } <b>${e.role}</b>.`,
           to: toUser._id,
           action: true,
         };
@@ -257,11 +257,13 @@ export class UserService {
       read: false,
       type: NotificationType.REQUEST,
       referenceId: token,
-      message: `${startCase(
+      message: `<b>${startCase(
         fromUser.name,
-      )} is requesting to change the role from ${fromUser.role} to ${
+      )}</b> is requesting to change the role from ${
+        isVowel(fromUser.role) ? 'an' : 'a'
+      } <b>${fromUser.role}</b> to ${isVowel(data.role) ? 'an' : 'a'} <b>${
         data.role
-      }.`,
+      }</b>.`,
       to: toUser._id,
       action: true,
     };
@@ -325,7 +327,9 @@ export class UserService {
     const notification = {
       read: false,
       type: NotificationType.REQUEST,
-      message: `Admin approved your role changes to ${toUser.role}. Please sign in again to make changes.`,
+      message: `Admin <b>approved</b> your role changes to ${
+        isVowel(toUser.role) ? 'an' : 'a'
+      } <b>${toUser.role}</b>. Please sign in again to make changes.`,
       to: toUser._id,
       action: false,
     };
@@ -359,7 +363,9 @@ export class UserService {
     const notification = {
       read: false,
       type: NotificationType.REQUEST,
-      message: `Admin rejected your role changes to ${toUser.role}`,
+      message: `Admin <b>rejected</b> your role changes to ${
+        isVowel(toUser.role) ? 'an' : 'a'
+      } <b>${toUser.role}</b>.`,
       to: toUser._id,
       action: false,
     };
@@ -415,7 +421,9 @@ export class UserService {
     const notification = {
       read: false,
       type: NotificationType.INVITATION,
-      message: `You accepted role changes to ${user.role}`,
+      message: `You <b>accepted</b> role changes to ${
+        isVowel(user.role) ? 'an' : 'a'
+      } <b>${user.role}</b>.`,
       to: user._id,
       action: false,
     };
@@ -449,7 +457,9 @@ export class UserService {
     const notification = {
       read: false,
       type: NotificationType.INVITATION,
-      message: `You rejected role changes to ${invitation.role}`,
+      message: `You <b>rejected</b> role changes to ${
+        isVowel(invitation.role) ? 'an' : 'a'
+      }<b>${invitation.role}</b>.`,
       to: user._id,
       action: false,
     };
