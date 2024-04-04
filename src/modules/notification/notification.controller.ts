@@ -23,7 +23,12 @@ export class NotificationController {
   }
 
   @Patch('/:id/read')
-  async patch(@Request() req: Req, @Param('id') id: string) {
-    return this.notificationService.patch(req.user.id, id);
+  async read(@Request() req: Req, @Param('id') id: string) {
+    return this.notificationService.read(req.user.id, id);
+  }
+
+  @Patch('/read/all')
+  async readAll(@Request() req: Req) {
+    return this.notificationService.read(req.user.id);
   }
 }

@@ -35,11 +35,16 @@ export class NotificationService {
     return this.notificationRepository.count(updatedQuery);
   }
 
-  async patch(to: string, notificationId: string) {
+  async read(to: string, notificationId?: string) {
     const filter = {
-      _id: new mongoose.Types.ObjectId(notificationId),
       to: new mongoose.Types.ObjectId(to),
     };
+
+    if (notificationId) {
+      Object.assign(filter, {
+        _id: new mongoose.Types.ObjectId(notificationId),
+      });
+    }
 
     return this.notificationRepository.updateMany(filter, {
       $set: {
