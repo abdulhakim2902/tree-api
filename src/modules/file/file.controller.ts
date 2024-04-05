@@ -18,6 +18,7 @@ import { UploadFileDto } from './dto/upload-file.dto';
 import { FileService } from './file.service';
 import { Roles } from 'src/decorators/role';
 import { Role } from 'src/enums/role.enum';
+import { CREATE, DELETE, READ } from 'src/constants/permission';
 
 @ApiBearerAuth()
 @ApiTags(Tag.FILE)
@@ -26,14 +27,14 @@ export class FileController {
   constructor(private readonly fileService: FileService) {}
 
   @Get('/')
-  @Roles([Role.GUEST, Role.CONTRIBUTOR, Role.EDITOR])
+  @Roles(READ)
   @ApiQuery({ type: String, name: 'nodeId', required: false })
   async find(@Query('nodeId') nodeId?: string) {
     return this.fileService.findFiles(nodeId);
   }
 
   @Post('/')
-  @Roles([Role.CONTRIBUTOR, Role.EDITOR])
+  @Roles([Role.CONTRIBUTOR, ...CREATE])
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   async create(
@@ -44,7 +45,7 @@ export class FileController {
   }
 
   @Delete('/:id')
-  @Roles([Role.EDITOR])
+  @Roles(DELETE)
   @ApiQuery({ type: String, name: 'type', required: false })
   async deleteById(@Param('id') id: string, @Query('type') type?: string) {
     return this.fileService.deleteFile(id, type);
