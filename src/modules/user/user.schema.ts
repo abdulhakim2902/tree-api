@@ -1,7 +1,7 @@
 import * as bcrypt from 'bcrypt';
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
 import { startCase } from 'src/helper/string';
 import { Role } from 'src/enums/role.enum';
 
@@ -59,6 +59,11 @@ export class User extends Document {
     type: String,
   })
   profilImageURL: string;
+
+  @Prop({
+    type: mongoose.Types.ObjectId,
+  })
+  nodeId: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -1,16 +1,7 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Request,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { UpdateUserDto } from './dto';
-import { Request as Req } from 'src/interfaces/request.interface';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
 import { Roles } from 'src/decorators/role';
@@ -21,6 +12,7 @@ import {
 } from './dto/invite-request-user.dto';
 import { Public } from 'src/decorators/public';
 import { RequestAction } from 'src/enums/request-action';
+import { UserProfile } from 'src/decorators/user-profile';
 
 @ApiBearerAuth()
 @ApiTags(Tag.USER)
@@ -29,8 +21,8 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get('/me')
-  async me(@Request() req: Req) {
-    return this.userService.me(req?.user?.id);
+  async me(@UserProfile('id') id: string) {
+    return this.userService.me(id);
   }
 
   @ApiBody({ type: InviteRequestUserDto, isArray: true })
@@ -44,10 +36,10 @@ export class UserController {
   @Roles([Role.GUEST, Role.EDITOR, Role.CONTRIBUTOR])
   @Post('/requests')
   async createRequest(
-    @Request() req: Req,
+    @UserProfile('email') email: string,
     @Body() data: InviteRequestUserRoleDto,
   ) {
-    return this.userService.createRequest(req.user.email, data);
+    return this.userService.createRequest(email, data);
   }
 
   @Roles([Role.SUPERADMIN])
@@ -67,8 +59,8 @@ export class UserController {
 
   @ApiBody({ type: UpdateUserDto, isArray: false })
   @Patch('/me')
-  async updateById(@Request() req: Req, @Body() data: UpdateUserDto) {
-    return this.userService.update(req?.user?.id, data);
+  async updateById(@UserProfile('id') id: string, @Body() data: UpdateUserDto) {
+    return this.userService.update(id, data);
   }
 
   @Public()

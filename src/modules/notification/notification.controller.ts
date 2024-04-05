@@ -1,10 +1,10 @@
-import { Controller, Get, Param, Patch, Query, Request } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
-import { Request as Req } from 'src/interfaces/request.interface';
 import { NotificationService } from './notification.service';
 import { QueryNotificationDto } from './dto/query-notification.dto';
+import { UserProfile } from 'src/decorators/user-profile';
 
 @ApiBearerAuth()
 @ApiTags(Tag.NOTIFICATION)
@@ -13,22 +13,28 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Get('/')
-  async find(@Request() req: Req, @Query() query: QueryNotificationDto) {
-    return this.notificationService.find(req.user.id, query);
+  async find(
+    @UserProfile('id') userId: string,
+    @Query() query: QueryNotificationDto,
+  ) {
+    return this.notificationService.find(userId, query);
   }
 
   @Get('/count')
-  async count(@Request() req: Req, @Query() query: QueryNotificationDto) {
-    return this.notificationService.count(req.user.id, query);
+  async count(
+    @UserProfile('id') userId: string,
+    @Query() query: QueryNotificationDto,
+  ) {
+    return this.notificationService.count(userId, query);
   }
 
   @Patch('/:id/read')
-  async read(@Request() req: Req, @Param('id') id: string) {
-    return this.notificationService.read(req.user.id, id);
+  async read(@Param('id') id: string, @UserProfile('id') userId: string) {
+    return this.notificationService.read(userId, id);
   }
 
   @Patch('/read/all')
-  async readAll(@Request() req: Req) {
-    return this.notificationService.read(req.user.id);
+  async readAll(@UserProfile('id') userId: string) {
+    return this.notificationService.read(userId);
   }
 }

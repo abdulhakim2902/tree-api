@@ -39,6 +39,7 @@ export class UserService {
       username: user.username,
       email: user.email,
       role: user.role,
+      nodeId: user.nodeId,
     };
   }
 
@@ -131,7 +132,11 @@ export class UserService {
   }
 
   async update(id: string, data: UpdateUserDto): Promise<User> {
-    return this.userRepository.updateById(id, { $set: data });
+    const user = await this.userRepository.updateById(id, { $set: data });
+
+    await this.redisService.del('auth', user.id);
+
+    return user;
   }
 
   async findOne(filter: Record<string, any>): Promise<User> {

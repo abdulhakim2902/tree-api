@@ -63,6 +63,8 @@ export class AuthService {
       username: user.username,
     };
 
+    if (user?.nodeId) payload.nodeId = user.nodeId;
+
     const envSecret = this.configService.get<string>('JWT_SECRET');
     const randSecret = generateRandomString();
     const secret = envSecret + randSecret;
