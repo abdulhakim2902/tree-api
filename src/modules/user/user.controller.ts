@@ -42,6 +42,14 @@ export class UserController {
     return this.userService.createRequest(email, data);
   }
 
+  @Post('/:id/node/:nodeId')
+  async createClaimRequest(
+    @Param('id') id: string,
+    @Param('nodeId') nodeId: string,
+  ) {
+    return this.userService.createClaimRequest(id, nodeId);
+  }
+
   @Roles([Role.SUPERADMIN])
   @Post('/requests/:token/:action')
   async handleRequest(
@@ -49,6 +57,15 @@ export class UserController {
     @Param('action') action: RequestAction,
   ) {
     return this.userService.handleRequest(token, action);
+  }
+
+  @Roles([Role.SUPERADMIN])
+  @Post('/claim-requests/:token/:action')
+  async handleClaimRequest(
+    @Param('token') token: string,
+    @Param('action') action: RequestAction,
+  ) {
+    return this.userService.handleClaimRequest(token, action);
   }
 
   @Roles([Role.SUPERADMIN])

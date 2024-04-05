@@ -17,6 +17,7 @@ import { startCase } from 'lodash';
 import { NotificationRepository } from '../notification/notification.repository';
 import { RedisService } from '../redis/redis.service';
 import { isVowel, parse } from 'src/helper/string';
+import { NodeRepository } from '../node/node.repository';
 
 const TTL = 60 * 60; // 1HOUR
 
@@ -26,6 +27,7 @@ export class UserService {
 
   constructor(
     private readonly userRepository: UserRepository,
+    private readonly nodeRepository: NodeRepository,
     private readonly notificationRepository: NotificationRepository,
     private readonly mailService: MailService,
     private readonly redisService: RedisService,
@@ -283,6 +285,52 @@ export class UserService {
     };
   }
 
+  async createClaimRequest(id: string, nodeId: string) {
+    const user = await this.userRepository.findById(id);
+    if (user.nodeId) {
+      throw new BadRequestException('Node already claimed');
+    }
+
+    const userWithNode = await this.userRepository.findOne({ nodeId });
+    if (userWithNode) {
+      throw new BadRequestException('Node already claimed');
+    }
+
+    const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
+    if (!toUser) {
+      throw new BadRequestException('Admin not found');
+    }
+
+    const node = await this.nodeRepository.findById(nodeId);
+    const token = await this.generateOTP();
+    const payload = {
+      userId: user.id,
+      nodeId: node.id,
+      status: UserStatus.CLAIM_REQUEST,
+    };
+
+    const notification = {
+      read: false,
+      type: NotificationType.CLAIM,
+      referenceId: token,
+      additionalReferenceId: node.id,
+      message: `${startCase(user.name)} is requesting to claim ${startCase(
+        node.fullname,
+      )}`,
+      to: toUser._id,
+      action: true,
+    };
+
+    const str = JSON.stringify(payload);
+
+    await this.redisService.set(this.prefix, token, str);
+    await this.notificationRepository.insert(notification);
+
+    return {
+      message: 'Successfully create claim request',
+    };
+  }
+
   async handleInvitation(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
       return this.acceptInvitation(token);
@@ -302,6 +350,18 @@ export class UserService {
 
     if (action === RequestAction.REJECT) {
       return this.rejectRequest(token);
+    }
+
+    throw new BadRequestException('Invalid handle request');
+  }
+
+  async handleClaimRequest(token: string, action: RequestAction) {
+    if (action === RequestAction.ACCEPT) {
+      return this.acceptClaimRequest(token);
+    }
+
+    if (action === RequestAction.REJECT) {
+      return this.rejectClaimRequest(token);
     }
 
     throw new BadRequestException('Invalid handle request');
@@ -466,6 +526,94 @@ export class UserService {
         isVowel(invitation.role) ? 'an' : 'a'
       }<b>${invitation.role}</b>.`,
       to: user._id,
+      action: false,
+    };
+
+    return this.notificationRepository.insert(notification);
+  }
+
+  private async acceptClaimRequest(token: string) {
+    const cache = await this.redisService.get(this.prefix, token);
+    if (!cache) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const request = parse<{
+      userId: string;
+      nodeId: string;
+      status: UserStatus;
+    }>(cache);
+    if (!request) {
+      throw new BadRequestException('Request not found');
+    }
+
+    if (request.status !== UserStatus.CLAIM_REQUEST) {
+      throw new BadRequestException('Request not found');
+    }
+
+    const user = await this.userRepository.findById(request.userId);
+    const node = await this.nodeRepository.findById(request.nodeId);
+
+    user.nodeId = node.id;
+
+    await user.save();
+    await this.redisService.del(this.prefix, token);
+    await this.redisService.del('auth', user.id);
+    await this.nodeRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
+    const notification = {
+      read: false,
+      type: NotificationType.CLAIM,
+      additionalReferenceId: node.id,
+      message: `Admin <b>approved</b> your claim request of ${startCase(
+        node.fullname,
+      )}`,
+      to: user.id,
+      action: false,
+    };
+
+    return this.notificationRepository.insert(notification);
+  }
+
+  private async rejectClaimRequest(token: string) {
+    const cache = await this.redisService.get(this.prefix, token);
+    if (!cache) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const request = parse<{
+      userId: string;
+      nodeId: string;
+      status: UserStatus;
+    }>(cache);
+    if (!request) {
+      throw new BadRequestException('Request not found');
+    }
+
+    if (request.status !== UserStatus.CLAIM_REQUEST) {
+      throw new BadRequestException('Request not found');
+    }
+
+    const user = await this.userRepository.findById(request.userId);
+    const node = await this.nodeRepository.findById(request.nodeId);
+
+    await this.redisService.del(this.prefix, token);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
+    const notification = {
+      read: false,
+      type: NotificationType.CLAIM,
+      additionalReferenceId: node.id,
+      message: `Admin <b>rejected</b> your claim request of ${startCase(
+        node.fullname,
+      )}`,
+      to: user.id,
       action: false,
     };
 

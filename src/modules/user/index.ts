@@ -12,11 +12,14 @@ import {
 import { NotificationRepository } from '../notification/notification.repository';
 import { RedisService } from '../redis/redis.service';
 import { RedisFactory } from '../redis/redis.provider';
+import { Node, NodeSchema } from '../node/schemas/node.schema';
+import { NodeRepository } from '../node/node.repository';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
+      { name: Node.name, schema: NodeSchema },
       { name: Notification.name, schema: NotificationSchema },
     ]),
   ],
@@ -24,6 +27,7 @@ import { RedisFactory } from '../redis/redis.provider';
   providers: [
     UserService,
     UserRepository,
+    NodeRepository,
     NotificationRepository,
     MailService,
     RedisService,

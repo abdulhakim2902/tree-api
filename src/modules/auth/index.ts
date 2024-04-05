@@ -19,6 +19,7 @@ import {
 import { NotificationRepository } from '../notification/notification.repository';
 import { RedisService } from '../redis/redis.service';
 import { RedisFactory } from '../redis/redis.provider';
+import { NodeRepository } from '../node/node.repository';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { RedisFactory } from '../redis/redis.provider';
     MailService,
     RedisService,
     UserRepository,
+    NodeRepository,
     NotificationRepository,
     RedisFactory,
     { provide: APP_GUARD, useClass: AuthGuard },

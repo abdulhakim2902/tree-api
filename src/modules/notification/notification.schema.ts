@@ -24,6 +24,12 @@ export class Notification extends Document {
 
   @Prop({
     type: String,
+    required: false,
+  })
+  additionalReferenceId: string;
+
+  @Prop({
+    type: String,
     required: true,
   })
   message: string;

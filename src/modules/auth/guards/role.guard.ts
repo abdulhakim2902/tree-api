@@ -22,12 +22,12 @@ export class RoleGuard implements CanActivate {
     const params = request.params;
     const user = request.user;
 
-    if (
-      user.nodeId &&
-      user.nodeId === params?.id &&
-      this.methods.some((e) => e === request.method)
-    ) {
-      return true;
+    if (user.nodeId && this.methods.some((e) => e === request.method)) {
+      if (user.nodeId === params?.id) {
+        return true;
+      }
+
+      return false;
     }
 
     if (!user?.role) return false;
