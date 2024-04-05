@@ -11,6 +11,8 @@ import { FileModule } from './modules/file';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { MailModule } from './modules/mail';
 import { NotificationModule } from './modules/notification';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -53,6 +55,16 @@ import { NotificationModule } from './modules/notification';
         },
       }),
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => [
+        {
+          ttl: configService.get<number>('THROTTLE_TTL'),
+          limit: configService.get<number>('THROTTLE_LIMIT'),
+        },
+      ],
+    }),
     AuthModule,
     UserModule,
     NodeModule,
@@ -61,6 +73,11 @@ import { NotificationModule } from './modules/notification';
     NotificationModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
