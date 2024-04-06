@@ -13,6 +13,7 @@ import {
 import { Public } from 'src/decorators/public';
 import { RequestAction } from 'src/enums/request-action';
 import { UserProfile } from 'src/decorators/user-profile';
+import { ClaimRequestDto } from './dto/claim-request.dto';
 
 @ApiBearerAuth()
 @ApiTags(Tag.USER)
@@ -42,12 +43,12 @@ export class UserController {
     return this.userService.createRequest(email, data);
   }
 
-  @Post('/:id/node/:nodeId')
+  @Post('/claim-requests')
   async createClaimRequest(
-    @Param('id') id: string,
-    @Param('nodeId') nodeId: string,
+    @UserProfile('id') id: string,
+    @Body() data: ClaimRequestDto,
   ) {
-    return this.userService.createClaimRequest(id, nodeId);
+    return this.userService.createClaimRequest(id, data);
   }
 
   @Roles([Role.SUPERADMIN])

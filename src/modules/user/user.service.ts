@@ -18,6 +18,7 @@ import { NotificationRepository } from '../notification/notification.repository'
 import { RedisService } from '../redis/redis.service';
 import { isVowel, parse } from 'src/helper/string';
 import { NodeRepository } from '../node/node.repository';
+import { ClaimRequestDto } from './dto/claim-request.dto';
 
 const TTL = 60 * 60; // 1HOUR
 
@@ -285,7 +286,14 @@ export class UserService {
     };
   }
 
-  async createClaimRequest(id: string, nodeId: string) {
+  async createClaimRequest(id: string, data: ClaimRequestDto) {
+    const { nodeId } = data;
+
+    const cache = await this.redisService.get(this.prefix, id + nodeId);
+    if (cache) {
+      throw new BadRequestException('Claim request already sent');
+    }
+
     const user = await this.userRepository.findById(id);
     if (user.nodeId) {
       throw new BadRequestException('Node already claimed');
@@ -314,9 +322,9 @@ export class UserService {
       type: NotificationType.CLAIM,
       referenceId: token,
       additionalReferenceId: node.id,
-      message: `${startCase(user.name)} is requesting to claim ${startCase(
+      message: `<b>${user.email}</b> is requesting to claim <b>${startCase(
         node.fullname,
-      )}`,
+      )}</b>.`,
       to: toUser._id,
       action: true,
     };
@@ -324,6 +332,7 @@ export class UserService {
     const str = JSON.stringify(payload);
 
     await this.redisService.set(this.prefix, token, str);
+    await this.redisService.set(this.prefix, user.id + node.id, token);
     await this.notificationRepository.insert(notification);
 
     return {
@@ -554,15 +563,16 @@ export class UserService {
     const user = await this.userRepository.findById(request.userId);
     const node = await this.nodeRepository.findById(request.nodeId);
 
-    node.userId = user.id;
-    user.nodeId = node.id;
+    node.userId = user._id;
+    user.nodeId = node._id;
 
     await user.save();
     await node.save();
 
     await this.redisService.del(this.prefix, token);
+    await this.redisService.del(this.prefix, user.id + node.id);
     await this.redisService.del('auth', user.id);
-    await this.nodeRepository.updateMany(
+    await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },
     );
@@ -570,10 +580,9 @@ export class UserService {
     const notification = {
       read: false,
       type: NotificationType.CLAIM,
-      additionalReferenceId: node.id,
       message: `Admin <b>approved</b> your claim request of ${startCase(
         node.fullname,
-      )}`,
+      )}. Please sign in again to make changes.`,
       to: user.id,
       action: false,
     };
@@ -604,6 +613,7 @@ export class UserService {
     const node = await this.nodeRepository.findById(request.nodeId);
 
     await this.redisService.del(this.prefix, token);
+    await this.redisService.del(this.prefix, user.id + node.id);
     await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },
