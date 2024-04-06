@@ -18,7 +18,8 @@ import { NotificationRepository } from '../notification/notification.repository'
 import { RedisService } from '../redis/redis.service';
 import { isVowel, parse } from 'src/helper/string';
 import { NodeRepository } from '../node/node.repository';
-import { ClaimRequestDto } from './dto/claim-request.dto';
+import { ConnectNodeDto } from './dto/connect-node.dto';
+import { UserProfile } from 'src/interfaces/user-profile.interface';
 
 const TTL = 60 * 60; // 1HOUR
 
@@ -162,6 +163,37 @@ export class UserService {
     return updated;
   }
 
+  async disconnectNode(userProfile: UserProfile, nodeId: string) {
+    if (userProfile.nodeId !== nodeId) {
+      throw new BadRequestException('Invalid node');
+    }
+
+    const user = await this.userRepository.findById(userProfile.id);
+    if (!user.nodeId) {
+      throw new BadRequestException('User node not found');
+    }
+
+    const node = await this.nodeRepository.findById(nodeId);
+
+    if (!node.userId) {
+      throw new BadRequestException('Node user not found');
+    }
+
+    await this.userRepository.updateById(userProfile.id, {
+      $unset: { nodeId: '' },
+    });
+
+    await this.nodeRepository.updateById(nodeId, {
+      $unset: { userId: '' },
+    });
+
+    await this.redisService.del('auth', user.id);
+
+    return {
+      message: 'Successfully disconnect node',
+    };
+  }
+
   async invitation(token: string): Promise<UserInvitation> {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
@@ -286,22 +318,22 @@ export class UserService {
     };
   }
 
-  async createClaimRequest(id: string, data: ClaimRequestDto) {
+  async connectNode(id: string, data: ConnectNodeDto) {
     const { nodeId } = data;
 
     const cache = await this.redisService.get(this.prefix, id + nodeId);
     if (cache) {
-      throw new BadRequestException('Claim request already sent');
+      throw new BadRequestException('Request already sent');
     }
 
     const user = await this.userRepository.findById(id);
     if (user.nodeId) {
-      throw new BadRequestException('Node already claimed');
+      throw new BadRequestException('Node already connected');
     }
 
     const userWithNode = await this.userRepository.findOne({ nodeId });
     if (userWithNode) {
-      throw new BadRequestException('Node already claimed');
+      throw new BadRequestException('Node already connected');
     }
 
     const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
@@ -322,9 +354,9 @@ export class UserService {
       type: NotificationType.CLAIM,
       referenceId: token,
       additionalReferenceId: node.id,
-      message: `<b>${user.email}</b> is requesting to claim <b>${startCase(
+      message: `<b>${user.email}</b> is requesting to connect <b>${startCase(
         node.fullname,
-      )}</b>.`,
+      )}</b> node.`,
       to: toUser._id,
       action: true,
     };
@@ -336,7 +368,7 @@ export class UserService {
     await this.notificationRepository.insert(notification);
 
     return {
-      message: 'Successfully create claim request',
+      message: 'Successfully connect node',
     };
   }
 
@@ -364,13 +396,13 @@ export class UserService {
     throw new BadRequestException('Invalid handle request');
   }
 
-  async handleClaimRequest(token: string, action: RequestAction) {
+  async handleConnectNode(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
-      return this.acceptClaimRequest(token);
+      return this.acceptConnectNode(token);
     }
 
     if (action === RequestAction.REJECT) {
-      return this.rejectClaimRequest(token);
+      return this.rejectConnectNode(token);
     }
 
     throw new BadRequestException('Invalid handle request');
@@ -541,7 +573,7 @@ export class UserService {
     return this.notificationRepository.insert(notification);
   }
 
-  private async acceptClaimRequest(token: string) {
+  private async acceptConnectNode(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
@@ -557,7 +589,7 @@ export class UserService {
     }
 
     if (request.status !== UserStatus.CLAIM_REQUEST) {
-      throw new BadRequestException('Request not found');
+      throw new BadRequestException('Invalid request');
     }
 
     const user = await this.userRepository.findById(request.userId);
@@ -590,7 +622,7 @@ export class UserService {
     return this.notificationRepository.insert(notification);
   }
 
-  private async rejectClaimRequest(token: string) {
+  private async rejectConnectNode(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');

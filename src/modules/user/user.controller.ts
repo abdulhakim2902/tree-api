@@ -13,7 +13,8 @@ import {
 import { Public } from 'src/decorators/public';
 import { RequestAction } from 'src/enums/request-action';
 import { UserProfile } from 'src/decorators/user-profile';
-import { ClaimRequestDto } from './dto/claim-request.dto';
+import { ConnectNodeDto } from './dto/connect-node.dto';
+import { UserProfile as User } from 'src/interfaces/user-profile.interface';
 
 @ApiBearerAuth()
 @ApiTags(Tag.USER)
@@ -43,12 +44,12 @@ export class UserController {
     return this.userService.createRequest(email, data);
   }
 
-  @Post('/claim-requests')
-  async createClaimRequest(
+  @Post('/connect-node')
+  async connectNode(
     @UserProfile('id') id: string,
-    @Body() data: ClaimRequestDto,
+    @Body() data: ConnectNodeDto,
   ) {
-    return this.userService.createClaimRequest(id, data);
+    return this.userService.connectNode(id, data);
   }
 
   @Roles([Role.SUPERADMIN])
@@ -61,12 +62,20 @@ export class UserController {
   }
 
   @Roles([Role.SUPERADMIN])
-  @Post('/claim-requests/:token/:action')
+  @Post('/connect-node/:token/:action')
   async handleClaimRequest(
     @Param('token') token: string,
     @Param('action') action: RequestAction,
   ) {
-    return this.userService.handleClaimRequest(token, action);
+    return this.userService.handleConnectNode(token, action);
+  }
+
+  @Post('/disconnect-node/:nodeId')
+  async disconnectNode(
+    @UserProfile() user: User,
+    @Param('nodeId') nodeId: string,
+  ) {
+    return this.userService.disconnectNode(user, nodeId);
   }
 
   @Roles([Role.SUPERADMIN])
