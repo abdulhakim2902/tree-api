@@ -44,6 +44,12 @@ export class NodeController {
   }
 
   @Roles(READ)
+  @Get('/:id')
+  async node(@Param('id') id: string) {
+    return this.nodeService.findById(id);
+  }
+
+  @Roles(READ)
   @Get('/:id/root')
   async root(@Param('id') id: string) {
     return this.nodeService.root(id);
