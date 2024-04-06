@@ -554,9 +554,12 @@ export class UserService {
     const user = await this.userRepository.findById(request.userId);
     const node = await this.nodeRepository.findById(request.nodeId);
 
+    node.userId = user.id;
     user.nodeId = node.id;
 
     await user.save();
+    await node.save();
+
     await this.redisService.del(this.prefix, token);
     await this.redisService.del('auth', user.id);
     await this.nodeRepository.updateMany(

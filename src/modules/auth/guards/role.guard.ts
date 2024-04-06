@@ -6,8 +6,6 @@ import { Request } from 'src/interfaces/request.interface';
 
 @Injectable()
 export class RoleGuard implements CanActivate {
-  private readonly methods = ['PUT', 'PATCH', 'DELETE'];
-
   constructor(private reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -22,7 +20,7 @@ export class RoleGuard implements CanActivate {
     const params = request.params;
     const user = request.user;
 
-    if (user.nodeId && this.methods.some((e) => e === request.method)) {
+    if (user.nodeId && request.method === 'DELETE') {
       if (user.nodeId === params?.id) {
         return true;
       }

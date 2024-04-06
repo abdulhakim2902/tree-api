@@ -85,6 +85,12 @@ export class Node extends Document {
   })
   families: NodeFamily[];
 
+  @Prop({
+    type: mongoose.Types.ObjectId,
+    required: false,
+  })
+  userId: string;
+
   totalParents(type: RelationType | ParentRelationType): number {
     return this.parents.filter((e) => e.type === type).length;
   }
