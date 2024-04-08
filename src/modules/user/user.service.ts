@@ -321,7 +321,7 @@ export class UserService {
   async connectNode(id: string, data: ConnectNodeDto) {
     const { nodeId } = data;
 
-    const cache = await this.redisService.get(this.prefix, id + nodeId);
+    const cache = await this.redisService.get(this.prefix, `${id}:${nodeId}`);
     if (cache) {
       throw new BadRequestException('Request already sent');
     }
@@ -346,17 +346,17 @@ export class UserService {
     const payload = {
       userId: user.id,
       nodeId: node.id,
-      status: UserStatus.CLAIM_REQUEST,
+      status: UserStatus.CONNECT_REQUEST,
     };
 
     const notification = {
       read: false,
-      type: NotificationType.CLAIM,
+      type: NotificationType.CONNECT,
       referenceId: token,
-      additionalReferenceId: node.id,
+      additionalReferenceId: `${node.id}:${user.email}`,
       message: `<b>${user.email}</b> is requesting to connect <b>${startCase(
         node.fullname,
-      )}</b> node.`,
+      )}</b>.`,
       to: toUser._id,
       action: true,
     };
@@ -364,7 +364,7 @@ export class UserService {
     const str = JSON.stringify(payload);
 
     await this.redisService.set(this.prefix, token, str);
-    await this.redisService.set(this.prefix, user.id + node.id, token);
+    await this.redisService.set(this.prefix, `${user.id}:${node.id}`, token);
     await this.notificationRepository.insert(notification);
 
     return {
@@ -588,7 +588,7 @@ export class UserService {
       throw new BadRequestException('Request not found');
     }
 
-    if (request.status !== UserStatus.CLAIM_REQUEST) {
+    if (request.status !== UserStatus.CONNECT_REQUEST) {
       throw new BadRequestException('Invalid request');
     }
 
@@ -602,7 +602,7 @@ export class UserService {
     await node.save();
 
     await this.redisService.del(this.prefix, token);
-    await this.redisService.del(this.prefix, user.id + node.id);
+    await this.redisService.del(this.prefix, `${user.id}:${node.id}`);
     await this.redisService.del('auth', user.id);
     await this.notificationRepository.updateMany(
       { referenceId: token },
@@ -611,8 +611,8 @@ export class UserService {
 
     const notification = {
       read: false,
-      type: NotificationType.CLAIM,
-      message: `Admin <b>approved</b> your claim request of ${startCase(
+      type: NotificationType.CONNECT,
+      message: `Admin <b>approved</b> your connect request of ${startCase(
         node.fullname,
       )}. Please sign in again to make changes.`,
       to: user.id,
@@ -637,7 +637,7 @@ export class UserService {
       throw new BadRequestException('Request not found');
     }
 
-    if (request.status !== UserStatus.CLAIM_REQUEST) {
+    if (request.status !== UserStatus.CONNECT_REQUEST) {
       throw new BadRequestException('Request not found');
     }
 
@@ -645,7 +645,7 @@ export class UserService {
     const node = await this.nodeRepository.findById(request.nodeId);
 
     await this.redisService.del(this.prefix, token);
-    await this.redisService.del(this.prefix, user.id + node.id);
+    await this.redisService.del(this.prefix, `${user.id}:${node.id}`);
     await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },
@@ -653,9 +653,8 @@ export class UserService {
 
     const notification = {
       read: false,
-      type: NotificationType.CLAIM,
-      additionalReferenceId: node.id,
-      message: `Admin <b>rejected</b> your claim request of ${startCase(
+      type: NotificationType.CONNECT,
+      message: `Admin <b>rejected</b> your connect request of ${startCase(
         node.fullname,
       )}`,
       to: user.id,
