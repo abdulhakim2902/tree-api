@@ -10,7 +10,11 @@ import {
 import * as crypto from 'crypto';
 import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
-import { UserInvitation } from 'src/interfaces/user-invitations';
+import {
+  ConnectRequest,
+  UserInvitation,
+  UserToken,
+} from 'src/interfaces/user-invitations';
 import { RequestAction } from 'src/enums/request-action';
 import { NotificationType } from 'src/enums/notification-type.enum';
 import { startCase } from 'lodash';
@@ -163,37 +167,6 @@ export class UserService {
     return updated;
   }
 
-  async disconnectNode(userProfile: UserProfile, nodeId: string) {
-    if (userProfile.nodeId !== nodeId) {
-      throw new BadRequestException('Invalid node');
-    }
-
-    const user = await this.userRepository.findById(userProfile.id);
-    if (!user.nodeId) {
-      throw new BadRequestException('User node not found');
-    }
-
-    const node = await this.nodeRepository.findById(nodeId);
-
-    if (!node.userId) {
-      throw new BadRequestException('Node user not found');
-    }
-
-    await this.userRepository.updateById(userProfile.id, {
-      $unset: { nodeId: '' },
-    });
-
-    await this.nodeRepository.updateById(nodeId, {
-      $unset: { userId: '' },
-    });
-
-    await this.redisService.del('auth', user.id);
-
-    return {
-      message: 'Successfully disconnect node',
-    };
-  }
-
   async invitation(token: string): Promise<UserInvitation> {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
@@ -205,7 +178,14 @@ export class UserService {
       throw new BadRequestException('Invitation not found');
     }
 
-    return data;
+    if (
+      data.status === UserStatus.NEW_USER ||
+      data.status === UserStatus.REGISTRATION
+    ) {
+      return data;
+    }
+
+    throw new BadRequestException('Invitation not found');
   }
 
   async createInvitation(data: InviteRequestUserDto[]) {
@@ -219,13 +199,14 @@ export class UserService {
         status = UserStatus.ROLE_UPDATE;
       }
 
-      let data = {
-        email: e.email,
-        role: e.role,
-        status: status,
-      } as UserInvitation;
+      const data = { email: e.email, role: e.role, status };
 
       if (status === UserStatus.NEW_USER) {
+        const currentToken = await this.redisService.get(this.prefix, e.email);
+        if (currentToken) {
+          await this.redisService.del(this.prefix, currentToken);
+        }
+
         const to = e.email;
         const emailPayload = { token, type: 'invites', role: e.role };
         const str = JSON.stringify(data);
@@ -234,17 +215,17 @@ export class UserService {
         await this.redisService.set(this.prefix, token, str, TTL);
         await this.redisService.set(this.prefix, e.email, token, TTL);
       } else {
-        const currentToken = await this.redisService.get(this.prefix, e.email);
-        if (currentToken) {
-          const dataStr = await this.redisService.get(
-            this.prefix,
-            currentToken,
-          );
+        const cache = await this.redisService.get(this.prefix, toUser.id);
+        const tokens = parse<UserToken>(cache) ?? {};
+        const current = tokens[UserStatus.ROLE_UPDATE];
+        if (current) {
+          const dataStr = await this.redisService.get(this.prefix, current);
           const dataParse = parse<UserInvitation>(dataStr);
           if (dataParse) {
-            data = dataParse;
-            token = currentToken;
+            token = current;
+
             data.role = e.role;
+            data.email = dataParse.email;
           }
         }
         const notification = {
@@ -258,14 +239,21 @@ export class UserService {
           action: true,
         };
 
-        const str = JSON.stringify(data);
+        tokens[UserStatus.ROLE_UPDATE] = token;
 
-        await this.redisService.set(this.prefix, token, str);
-        await this.redisService.set(this.prefix, e.email, token);
+        const payloadStr = JSON.stringify(data);
+        const tokensStr = JSON.stringify(tokens);
+
+        await this.redisService.set(this.prefix, token, payloadStr);
+        await this.redisService.set(this.prefix, toUser.id, tokensStr);
 
         notifications.push(
           this.notificationRepository.findAndModify(
-            { referenceId: token, action: true },
+            {
+              referenceId: token,
+              read: false,
+              type: NotificationType.INVITATION,
+            },
             notification,
           ),
         );
@@ -279,16 +267,20 @@ export class UserService {
     };
   }
 
-  async createRequest(email: string, data: InviteRequestUserRoleDto) {
+  async createRequest(id: string, data: InviteRequestUserRoleDto) {
     const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
     if (!toUser) {
       throw new BadRequestException('Admin not found');
     }
 
-    const fromUser = await this.userRepository.findOne({ email });
-    const token = await this.generateOTP();
+    const cache = await this.redisService.get(this.prefix, id);
+    const tokens = parse<UserToken>(cache) ?? {};
+    const currentToken = tokens?.[UserStatus.ROLE_REQUEST];
+    const token = currentToken ?? (await this.generateOTP());
+
+    const fromUser = await this.userRepository.findById(id);
     const payload = {
-      email: email,
+      email: fromUser.email,
       role: data.role,
       status: UserStatus.ROLE_REQUEST,
     };
@@ -308,10 +300,17 @@ export class UserService {
       action: true,
     };
 
-    const str = JSON.stringify(payload);
+    tokens[UserStatus.ROLE_REQUEST] = token;
 
-    await this.redisService.set(this.prefix, token, str);
-    await this.notificationRepository.insert(notification);
+    const payloadStr = JSON.stringify(payload);
+    const tokensStr = JSON.stringify(tokens);
+
+    await this.redisService.set(this.prefix, token, payloadStr);
+    await this.redisService.set(this.prefix, id, tokensStr);
+    await this.notificationRepository.findAndModify(
+      { referenceId: token, read: false, type: NotificationType.REQUEST },
+      notification,
+    );
 
     return {
       message: 'Successfully create request',
@@ -321,8 +320,10 @@ export class UserService {
   async connectNode(id: string, data: ConnectNodeDto) {
     const { nodeId } = data;
 
-    const cache = await this.redisService.get(this.prefix, `${id}:${nodeId}`);
-    if (cache) {
+    const cache = await this.redisService.get(this.prefix, id);
+    const tokens = parse<UserToken>(cache) ?? {};
+    const currentToken = tokens?.[UserStatus.CONNECT_REQUEST];
+    if (currentToken) {
       throw new BadRequestException('Request already sent');
     }
 
@@ -343,11 +344,8 @@ export class UserService {
 
     const node = await this.nodeRepository.findById(nodeId);
     const token = await this.generateOTP();
-    const payload = {
-      userId: user.id,
-      nodeId: node.id,
-      status: UserStatus.CONNECT_REQUEST,
-    };
+    const status = UserStatus.CONNECT_REQUEST;
+    const payload = { userId: user.id, nodeId: node.id, status };
 
     const notification = {
       read: false,
@@ -361,10 +359,13 @@ export class UserService {
       action: true,
     };
 
-    const str = JSON.stringify(payload);
+    tokens[UserStatus.CONNECT_REQUEST] = token;
 
-    await this.redisService.set(this.prefix, token, str);
-    await this.redisService.set(this.prefix, `${user.id}:${node.id}`, token);
+    const payloadStr = JSON.stringify(payload);
+    const tokensStr = JSON.stringify(tokens);
+
+    await this.redisService.set(this.prefix, token, payloadStr);
+    await this.redisService.set(this.prefix, id, tokensStr);
     await this.notificationRepository.insert(notification);
 
     return {
@@ -396,16 +397,47 @@ export class UserService {
     throw new BadRequestException('Invalid handle request');
   }
 
-  async handleConnectNode(token: string, action: RequestAction) {
+  async handleConnect(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
-      return this.acceptConnectNode(token);
+      return this.acceptConnect(token);
     }
 
     if (action === RequestAction.REJECT) {
-      return this.rejectConnectNode(token);
+      return this.rejectConnect(token);
     }
 
     throw new BadRequestException('Invalid handle request');
+  }
+
+  async handleDisconnect(userProfile: UserProfile, nodeId: string) {
+    if (userProfile.nodeId !== nodeId) {
+      throw new BadRequestException('Invalid node');
+    }
+
+    const user = await this.userRepository.findById(userProfile.id);
+    if (!user.nodeId) {
+      throw new BadRequestException('User node not found');
+    }
+
+    const node = await this.nodeRepository.findById(nodeId);
+
+    if (!node.userId) {
+      throw new BadRequestException('Node user not found');
+    }
+
+    await this.userRepository.updateById(userProfile.id, {
+      $unset: { nodeId: '' },
+    });
+
+    await this.nodeRepository.updateById(nodeId, {
+      $unset: { userId: '' },
+    });
+
+    await this.redisService.del('auth', user.id);
+
+    return {
+      message: 'Successfully disconnect node',
+    };
   }
 
   private async acceptRequest(token: string) {
@@ -424,11 +456,21 @@ export class UserService {
       throw new BadRequestException('User not found');
     }
 
+    const tokensStr = await this.redisService.get(this.prefix, toUser.id);
+    const tokens = parse<UserToken>(tokensStr) ?? [];
+
+    delete tokens[UserStatus.ROLE_REQUEST];
+
+    await this.redisService.set(this.prefix, toUser.id, JSON.stringify(tokens));
+    await this.redisService.del(this.prefix, token);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
     if (toUser.role === Role.SUPERADMIN) {
       throw new BadRequestException('Superadmin cannot be changed');
     }
-
-    toUser.role = request.role;
 
     const notification = {
       read: false,
@@ -440,14 +482,11 @@ export class UserService {
       action: false,
     };
 
+    toUser.role = request.role;
+
     await toUser.save();
-    await this.redisService.del(this.prefix, token);
     await this.redisService.del('auth', toUser.id);
     await this.notificationRepository.insert(notification);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
 
     return {
       message: 'Successfully accept request',
@@ -476,6 +515,12 @@ export class UserService {
       action: false,
     };
 
+    const tokensStr = await this.redisService.get(this.prefix, toUser.id);
+    const tokens = parse<UserToken>(tokensStr) ?? {};
+
+    delete tokens[UserStatus.ROLE_REQUEST];
+
+    await this.redisService.set(this.prefix, toUser.id, JSON.stringify(tokens));
     await this.redisService.del(this.prefix, token);
     await this.notificationRepository.insert(notification);
     await this.notificationRepository.updateMany(
@@ -508,21 +553,26 @@ export class UserService {
       throw new BadRequestException('User not found');
     }
 
+    const tokensStr = await this.redisService.get(this.prefix, user.id);
+    const tokens = parse<UserToken>(tokensStr) ?? {};
+
+    delete tokens[UserStatus.ROLE_UPDATE];
+
+    await this.redisService.del(this.prefix, token);
+    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
     if (user.role === Role.SUPERADMIN) {
-      await this.redisService.del(this.prefix, token);
       throw new BadRequestException('Superadmin role cannot be changed');
     }
 
     user.role = invitation.role;
 
     await user.save();
-    await this.redisService.del(this.prefix, token);
-    await this.redisService.del(this.prefix, invitation.email);
     await this.redisService.del('auth', user.id);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
 
     const notification = {
       read: false,
@@ -553,8 +603,13 @@ export class UserService {
       throw new BadRequestException('User not found');
     }
 
+    const tokensStr = await this.redisService.get(this.prefix, user.id);
+    const tokens = parse<UserToken>(tokensStr) ?? {};
+
+    delete tokens[UserStatus.ROLE_UPDATE];
+
     await this.redisService.del(this.prefix, token);
-    await this.redisService.del(this.prefix, invitation.email);
+    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
     await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },
@@ -573,23 +628,19 @@ export class UserService {
     return this.notificationRepository.insert(notification);
   }
 
-  private async acceptConnectNode(token: string) {
+  private async acceptConnect(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
     }
 
-    const request = parse<{
-      userId: string;
-      nodeId: string;
-      status: UserStatus;
-    }>(cache);
+    const request = parse<ConnectRequest>(cache);
     if (!request) {
       throw new BadRequestException('Request not found');
     }
 
     if (request.status !== UserStatus.CONNECT_REQUEST) {
-      throw new BadRequestException('Invalid request');
+      throw new BadRequestException('Invalid connect request');
     }
 
     const user = await this.userRepository.findById(request.userId);
@@ -601,8 +652,13 @@ export class UserService {
     await user.save();
     await node.save();
 
+    const tokensStr = await this.redisService.get(this.prefix, user.id);
+    const tokens = parse<UserToken>(tokensStr) ?? {};
+
+    delete tokens[UserStatus.CONNECT_REQUEST];
+
+    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
     await this.redisService.del(this.prefix, token);
-    await this.redisService.del(this.prefix, `${user.id}:${node.id}`);
     await this.redisService.del('auth', user.id);
     await this.notificationRepository.updateMany(
       { referenceId: token },
@@ -622,7 +678,7 @@ export class UserService {
     return this.notificationRepository.insert(notification);
   }
 
-  private async rejectConnectNode(token: string) {
+  private async rejectConnect(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
@@ -644,8 +700,13 @@ export class UserService {
     const user = await this.userRepository.findById(request.userId);
     const node = await this.nodeRepository.findById(request.nodeId);
 
+    const tokensStr = await this.redisService.get(this.prefix, user.id);
+    const tokens = parse<UserToken>(tokensStr) ?? {};
+
+    delete tokens[UserStatus.CONNECT_REQUEST];
+
+    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
     await this.redisService.del(this.prefix, token);
-    await this.redisService.del(this.prefix, `${user.id}:${node.id}`);
     await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },

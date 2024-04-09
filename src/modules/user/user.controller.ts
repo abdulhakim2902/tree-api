@@ -38,10 +38,10 @@ export class UserController {
   @Roles([Role.GUEST, Role.EDITOR, Role.CONTRIBUTOR])
   @Post('/requests')
   async createRequest(
-    @UserProfile('email') email: string,
+    @UserProfile('id') id: string,
     @Body() data: InviteRequestUserRoleDto,
   ) {
-    return this.userService.createRequest(email, data);
+    return this.userService.createRequest(id, data);
   }
 
   @Post('/connect-node')
@@ -63,19 +63,19 @@ export class UserController {
 
   @Roles([Role.SUPERADMIN])
   @Post('/connect-node/:token/:action')
-  async handleClaimRequest(
+  async handleConnect(
     @Param('token') token: string,
     @Param('action') action: RequestAction,
   ) {
-    return this.userService.handleConnectNode(token, action);
+    return this.userService.handleConnect(token, action);
   }
 
   @Post('/disconnect-node/:nodeId')
-  async disconnectNode(
+  async handleDisconnect(
     @UserProfile() user: User,
     @Param('nodeId') nodeId: string,
   ) {
-    return this.userService.disconnectNode(user, nodeId);
+    return this.userService.handleDisconnect(user, nodeId);
   }
 
   @Roles([Role.SUPERADMIN])

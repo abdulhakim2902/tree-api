@@ -11,3 +11,14 @@ export interface UserInvitation {
   password?: string;
   token?: string;
 }
+
+export type ConnectRequest = Status & {
+  userId: string;
+  nodeId: string;
+};
+
+export type Status = {
+  status: UserStatus;
+};
+
+export type UserToken = Record<UserStatus, string>;
