@@ -48,7 +48,13 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      const token = await this.redisService.get('user', data.username);
+
+      if (!token) {
+        throw new NotFoundException('User not found');
+      }
+
+      return { token: '', verified: false };
     }
 
     const isValid = await bcrypt.compare(data.password, user.password);
@@ -78,6 +84,6 @@ export class AuthService {
       this.expires,
     );
 
-    return { token: sessionToken };
+    return { token: sessionToken, verified: true };
   }
 }

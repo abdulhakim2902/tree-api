@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { User } from 'src/modules/user/user.schema';
 import { UserRepository } from 'src/modules/user/user.repository';
@@ -54,6 +58,13 @@ export class UserService {
   async insert(data: CreateUserDto, token?: string): Promise<User> {
     try {
       if (!token) {
+        const toUser = await this.userRepository.findOne({
+          role: Role.SUPERADMIN,
+        });
+        if (!toUser) {
+          throw new BadRequestException('Admin not found');
+        }
+
         const { email, username } = data;
         const exist = await this.userRepository.findOne({
           $or: [{ email }, { username }],
@@ -72,6 +83,7 @@ export class UserService {
           email: email,
           role: Role.GUEST,
           status: UserStatus.REGISTRATION,
+          verified: { user: false, admin: false },
         };
 
         const emailPayload = { token, type: 'registration', email };
@@ -79,7 +91,22 @@ export class UserService {
 
         await this.redisService.set(this.prefix, token, str, TTL);
         await this.redisService.set(this.prefix, email, token, TTL);
+        await this.redisService.set(this.prefix, username, token, TTL);
+
         await this.mailService.sendEmailTo(to, emailPayload);
+
+        const notification = {
+          read: false,
+          type: NotificationType.REGISTRATION,
+          message: `<b>${startCase(
+            username,
+          )}</b> is requesting to verify the email ${email}`,
+          to: toUser._id,
+          action: true,
+        };
+
+        await this.notificationRepository.insert(notification);
+
         return {} as User;
       }
 
@@ -101,6 +128,20 @@ export class UserService {
         throw new BadRequestException('Invalid token');
       }
 
+      if (invitation.status === UserStatus.REGISTRATION) {
+        if (!invitation?.verified?.admin) {
+          invitation.verified.user = true;
+
+          const str = JSON.stringify(invitation);
+
+          await this.redisService.set(this.prefix, token, str);
+          await this.redisService.set(this.prefix, invitation.email, token);
+          await this.redisService.set(this.prefix, invitation.username, token);
+
+          throw new UnprocessableEntityException('Admin not verify your email');
+        }
+      }
+
       data.email = invitation.email;
       data.role = invitation.role;
       if (invitation.name) data.name = invitation.name;
@@ -119,6 +160,7 @@ export class UserService {
 
       await this.redisService.del(this.prefix, token);
       await this.redisService.del(this.prefix, data.email);
+      await this.redisService.del(this.prefix, data.username);
 
       const user = await this.userRepository.insert(data);
       const notification = {

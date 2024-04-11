@@ -10,7 +10,14 @@ export interface UserInvitation {
   username?: string;
   password?: string;
   token?: string;
+
+  verified?: Verified;
 }
+
+export type Verified = {
+  user: boolean;
+  admin: boolean;
+};
 
 export type ConnectRequest = Status & {
   userId: string;
