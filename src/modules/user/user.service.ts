@@ -98,6 +98,7 @@ export class UserService {
         const notification = {
           read: false,
           type: NotificationType.REGISTRATION,
+          referenceId: token,
           message: `<b>${startCase(
             username,
           )}</b> is requesting to verify the email ${email}`,
@@ -154,13 +155,13 @@ export class UserService {
         $or: [{ email: email }, { username: username }],
       });
 
-      if (exist) {
-        throw new Error('Email/username already existed');
-      }
-
       await this.redisService.del(this.prefix, token);
       await this.redisService.del(this.prefix, data.email);
       await this.redisService.del(this.prefix, data.username);
+
+      if (exist) {
+        throw new Error('Email/username already existed');
+      }
 
       const user = await this.userRepository.insert(data);
       const notification = {
@@ -441,6 +442,18 @@ export class UserService {
     throw new BadRequestException('Invalid handle request');
   }
 
+  async handleRegistration(token: string, action: RequestAction) {
+    if (action === RequestAction.ACCEPT) {
+      return this.acceptRegistration(token);
+    }
+
+    if (action === RequestAction.REJECT) {
+      return this.rejectRegistration(token);
+    }
+
+    throw new BadRequestException('Invalid handle registration request');
+  }
+
   async handleConnect(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
       return this.acceptConnect(token);
@@ -495,6 +508,10 @@ export class UserService {
       throw new BadRequestException('Request not found');
     }
 
+    if (request.status !== UserStatus.ROLE_REQUEST) {
+      throw new BadRequestException('Invalid token');
+    }
+
     const toUser = await this.userRepository.findOne({ email: request.email });
     if (!toUser) {
       throw new BadRequestException('User not found');
@@ -546,6 +563,10 @@ export class UserService {
     const request = parse<UserInvitation>(cache);
     if (!request) {
       throw new BadRequestException('Request not found');
+    }
+
+    if (request.status !== UserStatus.ROLE_REQUEST) {
+      throw new BadRequestException('Invalid token');
     }
 
     const toUser = await this.userRepository.findOne({ email: request.email });
@@ -642,6 +663,10 @@ export class UserService {
       throw new BadRequestException('Invitation not found');
     }
 
+    if (invitation.status !== UserStatus.ROLE_UPDATE) {
+      throw new BadRequestException('Invalid token');
+    }
+
     const user = await this.userRepository.findOne({ email: invitation.email });
     if (!user) {
       throw new BadRequestException('User not found');
@@ -728,11 +753,7 @@ export class UserService {
       throw new BadRequestException('Expired token');
     }
 
-    const request = parse<{
-      userId: string;
-      nodeId: string;
-      status: UserStatus;
-    }>(cache);
+    const request = parse<ConnectRequest>(cache);
     if (!request) {
       throw new BadRequestException('Request not found');
     }
@@ -767,6 +788,112 @@ export class UserService {
     };
 
     return this.notificationRepository.insert(notification);
+  }
+
+  private async acceptRegistration(token: string) {
+    const cache = await this.redisService.get(this.prefix, token);
+    if (!cache) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const invitation = parse<UserInvitation>(cache);
+    if (!invitation) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    if (invitation.status !== UserStatus.REGISTRATION) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    if (!invitation.verified.user) {
+      invitation.verified = { admin: true, user: false };
+
+      const str = JSON.stringify(invitation);
+
+      await this.redisService.set(this.prefix, token, str, TTL);
+      await this.redisService.set(this.prefix, invitation.email, token, TTL);
+      await this.redisService.set(this.prefix, invitation.username, token, TTL);
+      await this.notificationRepository.updateMany(
+        { referenceId: token },
+        { $unset: { referenceId: '' }, action: false, read: true },
+      );
+
+      return {
+        message: 'Succesfully verify new user email',
+      };
+    }
+
+    const data = new CreateUserDto();
+
+    data.email = invitation.email;
+    data.role = invitation.role;
+    if (invitation.name) data.name = invitation.name;
+    if (invitation.username) data.username = invitation.username;
+    if (invitation.password) data.password = invitation.password;
+
+    const { email, username } = data;
+
+    const exist = await this.userRepository.findOne({
+      $or: [{ email: email }, { username: username }],
+    });
+
+    await this.redisService.del(this.prefix, token);
+    await this.redisService.del(this.prefix, data.email);
+    await this.redisService.del(this.prefix, data.username);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
+    if (exist) {
+      // TODO: Send email
+      throw new BadRequestException('Successfully failed register new user.');
+    }
+
+    const user = await this.userRepository.insert(data);
+    const notification = {
+      read: false,
+      type: NotificationType.INVITATION,
+      message: `Welcome to the <b>Family Tree</b>. You are joining the tree as ${isVowel(
+        user.role,
+      )} <b>${user.role}</b>.`,
+      to: user._id,
+      action: false,
+    };
+
+    await this.notificationRepository.insert(notification);
+
+    // TODO: Send email
+
+    return {
+      message: 'Successfully register a new user',
+    };
+  }
+
+  private async rejectRegistration(token: string) {
+    const cache = await this.redisService.get(this.prefix, token);
+    if (!cache) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const invitation = parse<UserInvitation>(cache);
+    if (invitation.status !== UserStatus.REGISTRATION) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    await this.redisService.del(this.prefix, token);
+    await this.redisService.del(this.prefix, invitation.email);
+    await this.redisService.del(this.prefix, invitation.username);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
+    // TODO: send email
+
+    return {
+      message: 'Succesfully reject user registration',
+    };
   }
 
   private async generateOTP(size = 20): Promise<string> {

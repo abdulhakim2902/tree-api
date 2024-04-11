@@ -70,6 +70,15 @@ export class UserController {
     return this.userService.handleConnect(token, action);
   }
 
+  @Roles([Role.SUPERADMIN])
+  @Post('/registration/:token/:action')
+  async handleRegistration(
+    @Param('token') token: string,
+    @Param('action') action: RequestAction,
+  ) {
+    return this.userService.handleRegistration(token, action);
+  }
+
   @Post('/disconnect-node/:nodeId')
   async handleDisconnect(
     @UserProfile() user: User,

@@ -1,10 +1,9 @@
 import { Role } from 'src/enums/role.enum';
 import { UserStatus } from 'src/enums/user-status.enum';
 
-export interface UserInvitation {
+export type UserInvitation = Status & {
   email: string;
   role: Role;
-  status: UserStatus;
 
   name?: string;
   username?: string;
@@ -12,7 +11,7 @@ export interface UserInvitation {
   token?: string;
 
   verified?: Verified;
-}
+};
 
 export type Verified = {
   user: boolean;
