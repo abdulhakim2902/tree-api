@@ -40,6 +40,11 @@ export type TreeNodeData = {
   gender: Gender;
   birth?: TreeNodeBirth;
   profileImageURL?: string;
+  user?: {
+    id?: string;
+    name?: string;
+    email?: string;
+  };
 };
 
 export type TreeNode = {

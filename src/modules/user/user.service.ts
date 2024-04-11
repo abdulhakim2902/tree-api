@@ -351,10 +351,12 @@ export class UserService {
       read: false,
       type: NotificationType.CONNECT,
       referenceId: token,
-      additionalReferenceId: `${node.id}:${user.email}`,
-      message: `<b>${user.email}</b> is requesting to connect <b>${startCase(
+      additionalReferenceId: `${node.id}:${user.email}:${user.name}`,
+      message: `<b>${startCase(
+        user.name,
+      )}</b> is requesting to connect <b>${startCase(
         node.fullname,
-      )}</b>.`,
+      )}</b> node profile.`,
       to: toUser._id,
       action: true,
     };
@@ -668,9 +670,9 @@ export class UserService {
     const notification = {
       read: false,
       type: NotificationType.CONNECT,
-      message: `Admin <b>approved</b> your connect request of ${startCase(
+      message: `Admin <b>approved</b> your connect request of <b>${startCase(
         node.fullname,
-      )}. Please sign in again to make changes.`,
+      )}</b> node profile. Please sign in again to make changes.`,
       to: user.id,
       action: false,
     };
