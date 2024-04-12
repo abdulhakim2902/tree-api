@@ -1,10 +1,6 @@
-import { startCase } from 'lodash';
-import { Role } from 'src/enums/role.enum';
-
-export const getRequestHtml = (
-  role: Role,
+export const getEmailFoundHtml = (
   email: string,
-  additionalRole?: Role,
+  appURL: string,
 ) => `<body style="margin:0;">
 <!-- Embedded HTML code sent along with email begins here -->
 
@@ -16,30 +12,9 @@ export const getRequestHtml = (
 <div style="width: 100%; background-color: #22252c; text-align: center;">
   <div style="display: inline-block; max-width: 400px; margin: 30px;">
     <table cellspacing="0" cellpadding="0" style="color: #e4e4e4; font-family: Kanit, sans-serif;">
-      ${
-        role === Role.SUPERADMIN
-          ? `<tr>
-              <td colspan="2">
-                <div style="border-radius: 5px; border: 1px solid #020403; background-color: #17181a; padding: 17px; color: #2dc2e3; font-weight: 300; font-size: 20px; text-align: center;">
-                  ${email}
-                </div>
-              </td>
-            </tr>
-            <tr style="height: 25px;">
-              <td colspan="2">
-                <!-- padding -->
-                &nbsp;
-              </td>
-            </tr>`
-          : ''
-      }
       <tr>
-        <div style="font-family: Sarabun, sans-serif; font-size: 17px">
-          ${
-            role === Role.SUPERADMIN
-              ? 'are requesting to change a role as:'
-              : 'You are requesting to change a role as:'
-          }
+        <td style="font-weight: 400; font-size: 30px; text-align: center;">
+          Welcome to <a href="${appURL}" target="_blank" style="color: #2dc2e3; font-weight: 300; text-decoration: none;">Family Tree</a>
         </td>
       </tr>
       <tr style="height: 25px;">
@@ -49,13 +24,22 @@ export const getRequestHtml = (
         </td>
       </tr>
       <tr>
+        <td colspan="2" style="text-align: center; padding: 0px 13px;">
+          <div style="font-family: Sarabun, sans-serif; font-size: 17px">
+            Your registration is rejected because this email already registered on this <a href="${appURL}" target="_blank" style="color: #2dc2e3; font-weight: 300; text-decoration: none;">Family Tree app</a>.
+          </div>
+        </td>
+      </tr>
+      <tr style="height: 15px;">
+        <td colspan="2">
+          <!-- padding -->
+          &nbsp;
+        </td>
+      </tr>
+      <tr>
         <td colspan="2">
           <div style="border-radius: 5px; border: 1px solid #020403; background-color: #17181a; padding: 17px; color: #2dc2e3; font-weight: 300; font-size: 20px; text-align: center;">
-            ${
-              role === Role.SUPERADMIN
-                ? startCase(additionalRole)
-                : startCase(role)
-            }
+            ${email}
           </div>
         </td>
       </tr>

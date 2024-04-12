@@ -4,6 +4,7 @@ export const getInviteHtml = (
   role: Role,
   activationLink: string,
   permissionList: string[],
+  appURL: string,
 ) => `<body style="margin:0;">
 <!-- Embedded HTML code sent along with email begins here -->
 
@@ -18,7 +19,7 @@ export const getInviteHtml = (
       <tr>
         <td colspan="2" style="text-align: center; padding: 0px 13px;">
           <div style="font-family: Sarabun, sans-serif; font-size: 17px">
-            Admin shared a family tree with you. 
+            Admin shared a <a href="${appURL}" target="_blank" style="color: #2dc2e3; font-weight: 300; text-decoration: none;">family tree</a> with you. 
           </div>
         </td>
       </tr>

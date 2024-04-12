@@ -4,7 +4,15 @@ import { getRegistrationHtml } from './template/registration';
 import { ConfigService } from '@nestjs/config';
 import { Role } from 'src/enums/role.enum';
 import { getInviteHtml } from './template/invite';
-import { getRequestHtml } from './template/request';
+import { getEmailFoundHtml } from './template/email-found';
+import { getRegistrationAcceptedHtml } from './template/registration-accepted';
+import { getRegistrationRejectedHtml } from './template/registration-rejected';
+
+type Type =
+  | 'registration'
+  | 'invites'
+  | 'email-found'
+  | 'registration-accepted';
 
 @Injectable()
 export class MailService {
@@ -27,8 +35,12 @@ export class MailService {
   }
 
   private getText(data: any) {
-    if (data.type === 'request') {
-      return 'Request role changed';
+    if (data.type === 'email-found') {
+      return 'Your registration is rejected';
+    }
+
+    if (data.type === 'registration-accepted') {
+      return 'Your registration is accepted';
     }
 
     const inviteLink = this.getInviteLink(data.token);
@@ -40,8 +52,8 @@ export class MailService {
     return `${appURL}/?token=${token}`;
   }
 
-  private getSubject(type: 'registration' | 'invites' | 'request'): string {
-    if (type === 'registration') {
+  private getSubject(type: Type): string {
+    if (type === 'registration' || type === 'registration-accepted') {
       return 'Welcome to Family Tree';
     }
 
@@ -49,7 +61,7 @@ export class MailService {
       return 'Admin has shared a family tree with you.';
     }
 
-    return 'Role request';
+    return 'Admin has rejected your registration';
   }
 
   private getPermissions(role: Role): string[] {
@@ -67,19 +79,27 @@ export class MailService {
   }
 
   private getHtml(data: any): string {
+    const appURL = this.config.get<string>('APP_URL');
     const type = data.type;
     if (type === 'registration') {
-      const appURL = this.config.get<string>('APP_URL');
       const inviteLink = `${appURL}/?token=${data.token}`;
       return getRegistrationHtml(data.email, inviteLink, appURL);
     }
 
-    if (type === 'invites') {
-      const inviteLink = this.getInviteLink(data.token);
-      const permissionList = this.getPermissions(data.role);
-      return getInviteHtml(data.role, inviteLink, permissionList);
+    if (type === 'registration-accepted') {
+      return getRegistrationAcceptedHtml(appURL);
     }
 
-    return getRequestHtml(data.role, data.email, data.additionalRole);
+    if (type === 'registration-rejected') {
+      return getRegistrationRejectedHtml(data.email, appURL);
+    }
+
+    if (type === 'email-found') {
+      return getEmailFoundHtml(data.email, appURL);
+    }
+
+    const inviteLink = this.getInviteLink(data.token);
+    const permissionList = this.getPermissions(data.role);
+    return getInviteHtml(data.role, inviteLink, permissionList, appURL);
   }
 }

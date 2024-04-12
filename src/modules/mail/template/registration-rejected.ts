@@ -1,6 +1,5 @@
-export const getRegistrationHtml = (
+export const getRegistrationRejectedHtml = (
   email: string,
-  activationLink: string,
   appURL: string,
 ) => `<body style="margin:0;">
 <!-- Embedded HTML code sent along with email begins here -->
@@ -27,7 +26,7 @@ export const getRegistrationHtml = (
       <tr>
         <td colspan="2" style="text-align: center; padding: 0px 13px;">
           <div style="font-family: Sarabun, sans-serif; font-size: 17px">
-            To protect your account, please verify your email by clicking on the button below.
+            Your registration is rejected by the admin. Please contact admin to know more detail.
           </div>
         </td>
       </tr>
@@ -42,24 +41,6 @@ export const getRegistrationHtml = (
           <div style="border-radius: 5px; border: 1px solid #020403; background-color: #17181a; padding: 17px; color: #2dc2e3; font-weight: 300; font-size: 20px; text-align: center;">
             ${email}
           </div>
-        </td>
-      </tr>
-      <tr style="height: 15px;">
-        <td colspan="2">
-          <!-- padding -->
-          &nbsp;
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2">
-          <a href="${activationLink}" style="display: block; text-decoration: none; border-radius: 30px; height: 30px; background-color: #2dc2e3; padding: 12px; color: #fff; font-weight: 300; font-size: 18px; text-align: center;">
-            Confirm Email
-          </a>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2">
-          <span style="display: block; text-align: center; margin-top: 8px">Activation link valid for 1 hour</span>
         </td>
       </tr>
     </table>

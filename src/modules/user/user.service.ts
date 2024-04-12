@@ -850,7 +850,11 @@ export class UserService {
     );
 
     if (exist) {
-      // TODO: Send email
+      await this.mailService.sendEmailTo(email, {
+        type: 'email-found',
+        email: email,
+      });
+
       throw new BadRequestException('Successfully failed register new user.');
     }
 
@@ -867,7 +871,9 @@ export class UserService {
 
     await this.notificationRepository.insert(notification);
 
-    // TODO: Send email
+    await this.mailService.sendEmailTo(email, {
+      type: 'registration-accepted',
+    });
 
     return {
       message: 'User registration is accepted',
@@ -893,7 +899,10 @@ export class UserService {
       { $unset: { referenceId: '' }, action: false, read: true },
     );
 
-    // TODO: send email
+    await this.mailService.sendEmailTo(invitation.email, {
+      type: 'registration-rejected',
+      email: invitation.email,
+    });
 
     return {
       message: 'User registration is rejected',
