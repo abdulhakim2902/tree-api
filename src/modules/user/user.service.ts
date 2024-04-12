@@ -56,130 +56,126 @@ export class UserService {
   }
 
   async insert(data: CreateUserDto, token?: string): Promise<User> {
-    try {
-      if (!token) {
-        const toUser = await this.userRepository.findOne({
-          role: Role.SUPERADMIN,
-        });
-        if (!toUser) {
-          throw new BadRequestException('Admin not found');
-        }
-
-        const { email, username } = data;
-        const exist = await this.userRepository.findOne({
-          $or: [{ email }, { username }],
-        });
-
-        if (exist) {
-          throw new Error('Email/username already existed');
-        }
-
-        const to = email;
-        const token = await this.generateOTP();
-        const payload = {
-          name: data.name,
-          username: data.username,
-          password: data.password,
-          email: email,
-          role: Role.GUEST,
-          status: UserStatus.REGISTRATION,
-          verified: { user: false, admin: false },
-        };
-
-        const emailPayload = { token, type: 'registration', email };
-        const str = JSON.stringify(payload);
-
-        await this.redisService.set(this.prefix, token, str, TTL);
-        await this.redisService.set(this.prefix, email, token, TTL);
-        await this.redisService.set(this.prefix, username, token, TTL);
-
-        await this.mailService.sendEmailTo(to, emailPayload);
-
-        const notification = {
-          read: false,
-          type: NotificationType.REGISTRATION,
-          referenceId: token,
-          message: `<b>${startCase(
-            username,
-          )}</b> is requesting to verify the email ${email}`,
-          to: toUser._id,
-          action: true,
-        };
-
-        await this.notificationRepository.insert(notification);
-
-        return {} as User;
+    if (!token) {
+      const toUser = await this.userRepository.findOne({
+        role: Role.SUPERADMIN,
+      });
+      if (!toUser) {
+        throw new BadRequestException('Admin not found');
       }
-
-      const cache = await this.redisService.get(this.prefix, token);
-      if (!cache) {
-        throw new BadRequestException('Expired token');
-      }
-
-      const invitation = parse<UserInvitation>(cache);
-      if (!invitation) {
-        throw new BadRequestException('Invalid data');
-      }
-
-      if (
-        ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(
-          invitation.status,
-        )
-      ) {
-        throw new BadRequestException('Invalid token');
-      }
-
-      if (invitation.status === UserStatus.REGISTRATION) {
-        if (!invitation?.verified?.admin) {
-          invitation.verified.user = true;
-
-          const str = JSON.stringify(invitation);
-
-          await this.redisService.set(this.prefix, token, str);
-          await this.redisService.set(this.prefix, invitation.email, token);
-          await this.redisService.set(this.prefix, invitation.username, token);
-
-          throw new UnprocessableEntityException('Admin not verify your email');
-        }
-      }
-
-      data.email = invitation.email;
-      data.role = invitation.role;
-      if (invitation.name) data.name = invitation.name;
-      if (invitation.username) data.username = invitation.username;
-      if (invitation.password) data.password = invitation.password;
 
       const { email, username } = data;
-
       const exist = await this.userRepository.findOne({
-        $or: [{ email: email }, { username: username }],
+        $or: [{ email }, { username }],
       });
 
-      await this.redisService.del(this.prefix, token);
-      await this.redisService.del(this.prefix, data.email);
-      await this.redisService.del(this.prefix, data.username);
-
       if (exist) {
-        throw new Error('Email/username already existed');
+        throw new BadRequestException('Email/username already existed');
       }
 
-      const user = await this.userRepository.insert(data);
+      const to = email;
+      const token = await this.generateOTP();
+      const payload = {
+        name: data.name,
+        username: data.username,
+        password: data.password,
+        email: email,
+        role: Role.GUEST,
+        status: UserStatus.REGISTRATION,
+        verified: { user: false, admin: false },
+      };
+
+      const emailPayload = { token, type: 'registration', email };
+      const str = JSON.stringify(payload);
+
+      await this.redisService.set(this.prefix, token, str, TTL);
+      await this.redisService.set(this.prefix, email, token, TTL);
+      await this.redisService.set(this.prefix, username, token, TTL);
+
+      await this.mailService.sendEmailTo(to, emailPayload);
+
       const notification = {
         read: false,
-        type: NotificationType.INVITATION,
-        message: `Welcome to the <b>Family Tree</b>. You are joining the tree as ${isVowel(
-          user.role,
-        )} <b>${user.role}</b>.`,
-        to: user._id,
-        action: false,
+        type: NotificationType.REGISTRATION,
+        referenceId: token,
+        message: `<b>${username}</b> is requesting to verify the email ${email}`,
+        to: toUser._id,
+        action: true,
       };
 
       await this.notificationRepository.insert(notification);
 
-      return user;
-    } catch (err) {
-      throw new BadRequestException(err.message);
+      return {} as User;
     }
+
+    const cache = await this.redisService.get(this.prefix, token);
+    if (!cache) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const invitation = parse<UserInvitation>(cache);
+    if (!invitation) {
+      throw new BadRequestException('Invalid data');
+    }
+
+    if (
+      ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(
+        invitation.status,
+      )
+    ) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    if (invitation.status === UserStatus.REGISTRATION) {
+      if (!invitation?.verified?.admin) {
+        invitation.verified.user = true;
+
+        const str = JSON.stringify(invitation);
+
+        await this.redisService.set(this.prefix, token, str);
+        await this.redisService.set(this.prefix, invitation.email, token);
+        await this.redisService.set(this.prefix, invitation.username, token);
+
+        throw new UnprocessableEntityException(
+          'Please wait for admin to verify your email',
+        );
+      }
+    }
+
+    data.email = invitation.email;
+    data.role = invitation.role;
+    if (invitation.name) data.name = invitation.name;
+    if (invitation.username) data.username = invitation.username;
+    if (invitation.password) data.password = invitation.password;
+
+    const { email, username } = data;
+
+    const exist = await this.userRepository.findOne({
+      $or: [{ email: email }, { username: username }],
+    });
+
+    await this.redisService.del(this.prefix, token);
+    await this.redisService.del(this.prefix, data.email);
+    await this.redisService.del(this.prefix, data.username);
+
+    if (exist) {
+      throw new BadRequestException('Email/username already existed');
+    }
+
+    const user = await this.userRepository.insert(data);
+    const notification = {
+      read: false,
+      type: NotificationType.INVITATION,
+      message: `Welcome to the <b>Family Tree</b>. You are joining the tree as ${isVowel(
+        user.role,
+      )} <b>${user.role}</b>.`,
+      to: user._id,
+      action: false,
+    };
+
+    await this.notificationRepository.insert(notification);
+
+    return user;
   }
 
   async update(id: string, data: UpdateUserDto): Promise<User> {

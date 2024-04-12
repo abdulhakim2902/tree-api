@@ -1,9 +1,11 @@
 import * as bcrypt from 'bcrypt';
 
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { LoginDto, RegisterDto } from './dto';
 import { JwtService } from '@nestjs/jwt';
@@ -14,7 +16,8 @@ import { User } from 'src/modules/user/user.schema';
 import { CreateUserDto } from '../user/dto';
 import { RedisService } from '../redis/redis.service';
 import { ConfigService } from '@nestjs/config';
-import { generateRandomString } from 'src/helper/string';
+import { generateRandomString, parse } from 'src/helper/string';
+import { UserInvitation } from 'src/interfaces/user-invitations';
 
 @Injectable()
 export class AuthService {
@@ -54,7 +57,24 @@ export class AuthService {
         throw new NotFoundException('User not found');
       }
 
-      return { token: '', verified: false };
+      const cache = await this.redisService.get('user', token);
+      const user = parse<UserInvitation>(cache);
+
+      if (!user) {
+        throw new BadRequestException('Expired token');
+      }
+
+      if (!user?.verified?.user) {
+        throw new UnprocessableEntityException(
+          'Your account is not verified. Please check your email for the verification.',
+        );
+      }
+
+      if (!user?.verified?.admin) {
+        throw new UnprocessableEntityException(
+          'Your account is not verified by the admin. Please contact your admin.',
+        );
+      }
     }
 
     const isValid = await bcrypt.compare(data.password, user.password);

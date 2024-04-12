@@ -1,5 +1,5 @@
 import { MailerService } from '@nestjs-modules/mailer';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { getRegistrationHtml } from './template/registration';
 import { ConfigService } from '@nestjs/config';
 import { Role } from 'src/enums/role.enum';
@@ -15,11 +15,15 @@ export class MailService {
   }
 
   async sendEmailTo(to: string, data: any) {
-    const subject = this.getSubject(data.type);
-    const text = this.getText(data);
-    const html = this.getHtml(data);
+    try {
+      const subject = this.getSubject(data.type);
+      const text = this.getText(data);
+      const html = this.getHtml(data);
 
-    return this.mailerService.sendMail({ to, subject, text, html });
+      await this.mailerService.sendMail({ to, subject, text, html });
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
   }
 
   private getText(data: any) {
