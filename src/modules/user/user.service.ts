@@ -306,7 +306,7 @@ export class UserService {
     await Promise.all(notifications);
 
     return {
-      message: 'Successfully create invitation',
+      message: 'Invitation is sent',
     };
   }
 
@@ -356,7 +356,7 @@ export class UserService {
     );
 
     return {
-      message: 'Successfully create request',
+      message: 'Request is sent',
     };
   }
 
@@ -414,7 +414,7 @@ export class UserService {
     await this.notificationRepository.insert(notification);
 
     return {
-      message: 'Successfully connect node',
+      message: 'Connect request is sent',
     };
   }
 
@@ -550,7 +550,7 @@ export class UserService {
     await this.notificationRepository.insert(notification);
 
     return {
-      message: 'Successfully accept request',
+      message: 'Request is accepted',
     };
   }
 
@@ -594,7 +594,7 @@ export class UserService {
     );
 
     return {
-      message: 'Successfully reject request',
+      message: 'Request is rejected',
     };
   }
 
@@ -744,7 +744,11 @@ export class UserService {
       action: false,
     };
 
-    return this.notificationRepository.insert(notification);
+    await this.notificationRepository.insert(notification);
+
+    return {
+      message: 'Connect request is accepted',
+    };
   }
 
   private async rejectConnect(token: string) {
@@ -787,7 +791,11 @@ export class UserService {
       action: false,
     };
 
-    return this.notificationRepository.insert(notification);
+    await this.notificationRepository.insert(notification);
+
+    return {
+      message: 'Connect request is rejected',
+    };
   }
 
   private async acceptRegistration(token: string) {
@@ -819,7 +827,7 @@ export class UserService {
       );
 
       return {
-        message: 'Succesfully verify new user email',
+        message: 'New user is verified',
       };
     }
 
@@ -866,7 +874,7 @@ export class UserService {
     // TODO: Send email
 
     return {
-      message: 'Successfully register a new user',
+      message: 'User registration is accepted',
     };
   }
 
@@ -892,7 +900,7 @@ export class UserService {
     // TODO: send email
 
     return {
-      message: 'Succesfully reject user registration',
+      message: 'User registration is rejected',
     };
   }
 
