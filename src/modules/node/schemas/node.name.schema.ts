@@ -53,7 +53,7 @@ export class NodeName extends Document {
     type: [NodeNicknameSchema],
     required: false,
   })
-  nicknames: NodeNickname;
+  nicknames: NodeNickname[];
 }
 
 export const NodeNameSchema = SchemaFactory.createForClass(NodeName);

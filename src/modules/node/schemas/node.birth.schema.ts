@@ -6,14 +6,12 @@ class BirthPlace extends Document {
   @Prop({
     type: String,
     lowercase: true,
-    default: '',
   })
   city: string;
 
   @Prop({
     type: String,
     lowercase: true,
-    default: '',
   })
   country: string;
 }
@@ -25,21 +23,18 @@ export class NodeBirth extends Document {
   @Prop({
     type: Number,
     required: false,
-    default: -1,
   })
   year: number;
 
   @Prop({
     type: Number,
     required: false,
-    default: 0,
   })
   month: number;
 
   @Prop({
     type: Number,
     required: false,
-    default: 0,
   })
   day: number;
 

@@ -70,7 +70,7 @@ export class NodeService {
       updateQuery.name = node.name;
     }
 
-    if (data?.nicknames && Object.values(data.nicknames).length > 0) {
+    if (data?.nicknames && data.nicknames.length > 0) {
       updateQuery.name.nicknames = data.nicknames;
     }
 
