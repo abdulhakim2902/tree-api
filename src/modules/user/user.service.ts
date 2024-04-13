@@ -56,6 +56,7 @@ export class UserService {
   }
 
   async insert(data: CreateUserDto, token?: string): Promise<User> {
+    // If token not exists, user is doing self registration
     if (!token) {
       const toUser = await this.userRepository.findOne({
         role: Role.SUPERADMIN,
@@ -86,9 +87,9 @@ export class UserService {
       };
 
       const emailPayload = { token, type: 'registration', email };
-      const str = JSON.stringify(payload);
+      const payloadStr = JSON.stringify(payload);
 
-      await this.redisService.set(this.prefix, token, str, TTL);
+      await this.redisService.set(this.prefix, token, payloadStr, TTL);
       await this.redisService.set(this.prefix, email, token, TTL);
       await this.redisService.set(this.prefix, username, token, TTL);
 
@@ -108,13 +109,16 @@ export class UserService {
       return {} as User;
     }
 
+    // Email verification via token
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
+      await this.handleRemoveToken(token);
       throw new BadRequestException('Expired token');
     }
 
     const invitation = parse<UserInvitation>(cache);
     if (!invitation) {
+      await this.handleRemoveToken(token);
       throw new BadRequestException('Invalid data');
     }
 
@@ -126,13 +130,15 @@ export class UserService {
       throw new BadRequestException('Invalid token');
     }
 
+    // Double verification by user and admin, if the registration
+    // not through invitation by the admin
     if (invitation.status === UserStatus.REGISTRATION) {
       if (!invitation?.verified?.admin) {
         invitation.verified.user = true;
 
-        const str = JSON.stringify(invitation);
+        const payloadStr = JSON.stringify(invitation);
 
-        await this.redisService.set(this.prefix, token, str);
+        await this.redisService.set(this.prefix, token, payloadStr);
         await this.redisService.set(this.prefix, invitation.email, token);
         await this.redisService.set(this.prefix, invitation.username, token);
 
@@ -518,12 +524,17 @@ export class UserService {
 
     delete tokens[UserStatus.ROLE_REQUEST];
 
-    await this.redisService.set(this.prefix, toUser.id, JSON.stringify(tokens));
-    await this.redisService.del(this.prefix, token);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
+    if (Object.values(tokens).length <= 0) {
+      await this.redisService.del(this.prefix, toUser.id);
+    } else {
+      await this.redisService.set(
+        this.prefix,
+        toUser.id,
+        JSON.stringify(tokens),
+      );
+    }
+
+    await this.handleRemoveToken(token);
 
     if (toUser.role === Role.SUPERADMIN) {
       throw new BadRequestException('Superadmin cannot be changed');
@@ -581,13 +592,18 @@ export class UserService {
 
     delete tokens[UserStatus.ROLE_REQUEST];
 
-    await this.redisService.set(this.prefix, toUser.id, JSON.stringify(tokens));
-    await this.redisService.del(this.prefix, token);
+    if (Object.values(tokens).length <= 0) {
+      await this.redisService.del(this.prefix, toUser.id);
+    } else {
+      await this.redisService.set(
+        this.prefix,
+        toUser.id,
+        JSON.stringify(tokens),
+      );
+    }
+
+    await this.handleRemoveToken(token);
     await this.notificationRepository.insert(notification);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
 
     return {
       message: 'Request is rejected',
@@ -619,12 +635,13 @@ export class UserService {
 
     delete tokens[UserStatus.ROLE_UPDATE];
 
-    await this.redisService.del(this.prefix, token);
-    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
+    if (Object.values(tokens).length <= 0) {
+      await this.redisService.del(this.prefix, user.id);
+    } else {
+      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
+    }
+
+    await this.handleRemoveToken(token);
 
     if (user.role === Role.SUPERADMIN) {
       throw new BadRequestException('Superadmin role cannot be changed');
@@ -673,12 +690,13 @@ export class UserService {
 
     delete tokens[UserStatus.ROLE_UPDATE];
 
-    await this.redisService.del(this.prefix, token);
-    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
+    if (Object.values(tokens).length <= 0) {
+      await this.redisService.del(this.prefix, user.id);
+    } else {
+      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
+    }
+
+    await this.handleRemoveToken(token);
 
     const notification = {
       read: false,
@@ -722,13 +740,14 @@ export class UserService {
 
     delete tokens[UserStatus.CONNECT_REQUEST];
 
-    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
-    await this.redisService.del(this.prefix, token);
+    if (Object.values(tokens).length <= 0) {
+      await this.redisService.del(this.prefix, user.id);
+    } else {
+      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
+    }
+
+    await this.handleRemoveToken(token);
     await this.redisService.del('auth', user.id);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
 
     const notification = {
       read: false,
@@ -770,12 +789,13 @@ export class UserService {
 
     delete tokens[UserStatus.CONNECT_REQUEST];
 
-    await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
-    await this.redisService.del(this.prefix, token);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
+    if (Object.values(tokens).length <= 0) {
+      await this.redisService.del(this.prefix, user.id);
+    } else {
+      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
+    }
+
+    await this.handleRemoveToken(token);
 
     const notification = {
       read: false,
@@ -841,13 +861,9 @@ export class UserService {
       $or: [{ email: email }, { username: username }],
     });
 
-    await this.redisService.del(this.prefix, token);
+    await this.handleRemoveToken(token);
     await this.redisService.del(this.prefix, data.email);
     await this.redisService.del(this.prefix, data.username);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
 
     if (exist) {
       await this.mailService.sendEmailTo(email, {
@@ -891,13 +907,9 @@ export class UserService {
       throw new BadRequestException('Invalid token');
     }
 
-    await this.redisService.del(this.prefix, token);
+    await this.handleRemoveToken(token);
     await this.redisService.del(this.prefix, invitation.email);
     await this.redisService.del(this.prefix, invitation.username);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
 
     await this.mailService.sendEmailTo(invitation.email, {
       type: 'registration-rejected',
@@ -907,6 +919,14 @@ export class UserService {
     return {
       message: 'User registration is rejected',
     };
+  }
+
+  private async handleRemoveToken(token: string) {
+    await this.redisService.del(this.prefix, token);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
   }
 
   private async generateOTP(size = 20): Promise<string> {
