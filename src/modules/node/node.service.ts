@@ -86,6 +86,12 @@ export class NodeService {
       updateQuery.$unset = { birth: '' };
     }
 
+    if (data?.death && Object.values(data.death).length > 0) {
+      updateQuery.death = data.death;
+    } else {
+      updateQuery.$unset = { death: '' };
+    }
+
     const updated = await this.nodeRepository.updateById(id, updateQuery);
     const filter = { 'families.id': id };
     const update = { $set: { 'families.$.name': updated.fullname } };

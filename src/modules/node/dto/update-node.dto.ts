@@ -65,6 +65,15 @@ export class UpdateNodeDto {
   @ValidateNested()
   @Type(() => CreateBirthDto)
   readonly birth: CreateBirthDto;
+
+  @ApiProperty({
+    type: CreateBirthDto,
+    required: false,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateBirthDto)
+  readonly death: CreateBirthDto;
 }
 
 export class UpdateNodeProfileDto {

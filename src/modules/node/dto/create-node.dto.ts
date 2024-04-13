@@ -43,16 +43,6 @@ export class CreateNameDto {
   @MinLength(1)
   @IsOptional()
   readonly last: string;
-
-  @ApiProperty({
-    type: String,
-    isArray: true,
-    required: false,
-    example: ['hakim'],
-  })
-  @IsString({ each: true })
-  @IsOptional()
-  readonly nicknames: string[];
 }
 
 export class CreateBirthPlaceDto {
@@ -147,4 +137,13 @@ export class CreateNodeDto {
   @Type(() => CreateBirthDto)
   @IsOptional()
   readonly birth: CreateBirthDto;
+
+  @ApiProperty({
+    type: CreateBirthDto,
+    required: false,
+  })
+  @ValidateNested()
+  @Type(() => CreateBirthDto)
+  @IsOptional()
+  readonly death: CreateBirthDto;
 }
