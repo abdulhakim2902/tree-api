@@ -1,28 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { FileType } from 'src/enums/file-type.enum';
 
-export class UploadFileDto {
-  @ApiProperty({ type: String, format: 'binary' })
-  file: string;
-
+export class QueryFileDto {
   @ApiProperty({
     type: String,
-    required: true,
-    example: '65d40e9a4bf716711a6fae7e',
+    required: false,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   id: string;
 
   @ApiProperty({
     type: String,
-    required: true,
+    required: false,
     example: FileType.USER,
     enum: [FileType.USER, FileType.NODE],
   })
   @IsEnum(FileType)
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   type: FileType;
 }

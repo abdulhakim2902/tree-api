@@ -19,6 +19,7 @@ import { FileService } from './file.service';
 import { Roles } from 'src/decorators/role';
 import { Role } from 'src/enums/role.enum';
 import { CREATE, DELETE, READ } from 'src/constants/permission';
+import { QueryFileDto } from './dto/query-file.dto';
 
 @ApiBearerAuth()
 @ApiTags(Tag.FILE)
@@ -28,9 +29,8 @@ export class FileController {
 
   @Get('/')
   @Roles(READ)
-  @ApiQuery({ type: String, name: 'nodeId', required: false })
-  async find(@Query('nodeId') nodeId?: string) {
-    return this.fileService.findFiles(nodeId);
+  async find(@Query() query: QueryFileDto) {
+    return this.fileService.findFiles(query);
   }
 
   @Post('/')

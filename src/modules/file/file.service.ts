@@ -4,6 +4,9 @@ import { UploadFileDto } from './dto/upload-file.dto';
 import { File } from './file.schema';
 import { CloudinaryService } from 'nestjs-cloudinary';
 import { FileRepository } from './file.repository';
+import { QueryFileDto } from './dto/query-file.dto';
+import { FilterQuery } from 'mongoose';
+import { FileType } from 'src/enums/file-type.enum';
 
 @Injectable()
 export class FileService {
@@ -12,10 +15,17 @@ export class FileService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  async findFiles(nodeId?: string) {
-    const query = {};
-    if (nodeId) Object.assign(query, { publicId: new RegExp(`^${nodeId}`) });
-    return this.fileRepository.find(query);
+  async findFiles(query: QueryFileDto) {
+    const filter = {} as FilterQuery<File>;
+    if (query.id) {
+      filter.publicId = new RegExp(`^${query.id}`);
+    }
+
+    if (query.type) {
+      filter.type = query.type;
+    }
+
+    return this.fileRepository.find(filter);
   }
 
   async createFile(
@@ -23,17 +33,18 @@ export class FileService {
     data: UploadFileDto,
   ): Promise<File> {
     try {
+      const { id, type } = data;
       const {
         public_id: publicId,
         asset_id: assetId,
         secure_url: url,
       } = await this.cloudinaryService.uploadFile(file, {
-        folder: data.nodeId,
+        folder: id,
         resource_type: 'image',
         transformation: { raw_transformation: 'w_500' },
       });
 
-      return this.fileRepository.insert({ publicId, assetId, url });
+      return this.fileRepository.insert({ publicId, assetId, url, type });
     } catch (err) {
       throw new BadRequestException(err.message);
     }
@@ -41,7 +52,7 @@ export class FileService {
 
   async deleteFile(id: string, type?: string) {
     if (type === 'node') {
-      const files = await this.findFiles(id);
+      const files = await this.findFiles({ id, type: FileType.NODE });
       const publicIds = files.map((file) => file.publicId);
       await this.fileRepository.deleteMany({ publicId: { $in: publicIds } });
       await this.cloudinaryService.cloudinary.api

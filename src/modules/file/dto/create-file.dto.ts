@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { FileType } from 'src/enums/file-type.enum';
 
 export class CreateFileDto {
   @ApiProperty({
@@ -18,4 +19,10 @@ export class CreateFileDto {
     required: true,
   })
   url: string;
+
+  @ApiProperty({
+    type: String,
+    required: true,
+  })
+  type: FileType;
 }
