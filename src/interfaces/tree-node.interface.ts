@@ -28,13 +28,18 @@ export type TreeNodeBirth = {
   };
 };
 
+export type TreeNodeNickname = {
+  name: string;
+  selected: boolean;
+};
+
 export type TreeNodeData = {
   id: string;
   name: {
     first: string;
     middle?: string;
     last?: string;
-    nicknames?: string[];
+    nicknames?: TreeNodeNickname[];
   };
   fullname: string;
   gender: Gender;

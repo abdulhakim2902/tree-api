@@ -1,8 +1,33 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Gender } from 'src/enums/gender.enum';
 import { CreateBirthDto, CreateNameDto } from './create-node.dto';
 import { Type } from 'class-transformer';
+
+export class UpdateNodeNicknameDto {
+  @ApiProperty({
+    type: String,
+    required: true,
+  })
+  @IsString()
+  @IsNotEmpty()
+  readonly name: string;
+
+  @ApiProperty({
+    type: Boolean,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  readonly selected: boolean;
+}
 
 export class UpdateNodeDto {
   @ApiProperty({
@@ -13,6 +38,13 @@ export class UpdateNodeDto {
   @Type(() => CreateNameDto)
   @IsOptional()
   readonly name: Omit<CreateNameDto, 'nicknames'>;
+
+  @ApiProperty({
+    type: UpdateNodeNicknameDto,
+    isArray: true,
+  })
+  @IsOptional()
+  readonly nicknames: UpdateNodeNicknameDto[];
 
   @ApiProperty({
     type: Gender,

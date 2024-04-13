@@ -2,6 +2,27 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 @Schema()
+export class NodeNickname extends Document {
+  @Prop({
+    type: String,
+    required: true,
+    trim: true,
+    lowercase: true,
+  })
+  name: string;
+
+  @Prop({
+    type: Boolean,
+    default: false,
+  })
+  selected: boolean;
+}
+
+const NodeNicknameSchema = SchemaFactory.createForClass(NodeNickname);
+
+NodeNicknameSchema.loadClass(NodeNickname);
+
+@Schema()
 export class NodeName extends Document {
   @Prop({
     type: String,
@@ -28,10 +49,11 @@ export class NodeName extends Document {
   last: string;
 
   @Prop({
-    type: [{ type: String, lowercase: true, trim: true }],
+    _id: false,
+    type: [NodeNicknameSchema],
     required: false,
   })
-  nicknames: string[];
+  nicknames: NodeNickname;
 }
 
 export const NodeNameSchema = SchemaFactory.createForClass(NodeName);

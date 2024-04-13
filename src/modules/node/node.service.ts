@@ -16,7 +16,7 @@ import { RelationType, SpouseRelationType } from 'src/enums/relation-type.enum';
 import { NodeRelation } from './schemas/node.relation.schema';
 import { intersectionWith } from 'lodash';
 import { NodeFamily } from './schemas/node.family.schema';
-import mongoose, { PipelineStage } from 'mongoose';
+import mongoose, { PipelineStage, UpdateQuery } from 'mongoose';
 import {
   NodeRelative,
   TreeNode,
@@ -62,18 +62,31 @@ export class NodeService {
       throw new UnprocessableEntityException('Gender cannot be changed');
     }
 
-    node.name.first = data.name.first;
-    node.name.middle = data.name.middle;
-    node.name.last = data.name.last;
+    const updateQuery = {} as UpdateQuery<Node>;
 
-    node.birth.day = data.birth.day;
-    node.birth.month = data.birth.month;
-    node.birth.year = data.birth.year;
-    node.birth.place.country = data.birth.place.country;
-    node.birth.place.city = data.birth.place.city;
+    if (data?.name && Object.values(data.name).length > 0) {
+      updateQuery.name = data.name;
+    } else {
+      updateQuery.name = node.name;
+    }
 
-    const updated = await node.save();
+    if (data?.nicknames && Object.values(data.nicknames).length > 0) {
+      updateQuery.name.nicknames = data.nicknames;
+    }
 
+    if (data.gender) {
+      updateQuery.gender = data.gender;
+    } else {
+      updateQuery.gender = node.gender;
+    }
+
+    if (data?.birth && Object.values(data.birth).length > 0) {
+      updateQuery.birth = data.birth;
+    } else {
+      updateQuery.$unset = { birth: '' };
+    }
+
+    const updated = await this.nodeRepository.updateById(id, updateQuery);
     const filter = { 'families.id': id };
     const update = { $set: { 'families.$.name': updated.fullname } };
 
@@ -438,7 +451,7 @@ export class NodeService {
               ? {
                   first: {
                     $ifNull: [
-                      { $arrayElemAt: ['$name.nicknames', 0] },
+                      { $arrayElemAt: ['$name.nicknames.name', 0] },
                       '$name.first',
                     ],
                   },
@@ -447,7 +460,7 @@ export class NodeService {
             fullname: isPublic
               ? {
                   $ifNull: [
-                    { $arrayElemAt: ['$name.nicknames', 0] },
+                    { $arrayElemAt: ['$name.nicknames.name', 0] },
                     '$name.first',
                   ],
                 }

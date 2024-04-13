@@ -4,7 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, PipelineStage } from 'mongoose';
+import { FilterQuery, Model, PipelineStage, UpdateQuery } from 'mongoose';
 import { CreateNodeDto } from 'src/modules/node/dto';
 import { Node } from 'src/modules/node/schemas/node.schema';
 
@@ -57,16 +57,16 @@ export class NodeRepository {
     }
   }
 
-  async find(filter?: Record<string, any>): Promise<Node[]> {
+  async find(filter: FilterQuery<Node> = {}): Promise<Node[]> {
     try {
-      const nodes = await this.node.find(filter ?? {}).exec();
+      const nodes = await this.node.find(filter).exec();
       return nodes;
     } catch (err) {
       throw new BadRequestException(err.message);
     }
   }
 
-  async updateById(id: string, data: Record<string, any>): Promise<Node> {
+  async updateById(id: string, data: UpdateQuery<Node>): Promise<Node> {
     let node: Node;
 
     try {
