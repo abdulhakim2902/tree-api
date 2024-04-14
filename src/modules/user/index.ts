@@ -14,6 +14,7 @@ import { RedisService } from '../redis/redis.service';
 import { RedisFactory } from '../redis/redis.provider';
 import { Node, NodeSchema } from '../node/schemas/node.schema';
 import { NodeRepository } from '../node/node.repository';
+import { SocketGateway } from '../socket/socket.gateway';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { NodeRepository } from '../node/node.repository';
     MailService,
     RedisService,
     RedisFactory,
+    SocketGateway,
   ],
 })
 export class UserModule {}

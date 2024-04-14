@@ -13,6 +13,7 @@ import { MailModule } from './modules/mail';
 import { NotificationModule } from './modules/notification';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { SocketModule } from './modules/socket';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { APP_GUARD } from '@nestjs/core';
     NodeModule,
     FileModule,
     MailModule,
+    SocketModule,
     NotificationModule,
   ],
   controllers: [],

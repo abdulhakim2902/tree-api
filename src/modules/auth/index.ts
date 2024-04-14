@@ -20,6 +20,7 @@ import { NotificationRepository } from '../notification/notification.repository'
 import { RedisService } from '../redis/redis.service';
 import { RedisFactory } from '../redis/redis.provider';
 import { NodeRepository } from '../node/node.repository';
+import { SocketGateway } from '../socket/socket.gateway';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { NodeRepository } from '../node/node.repository';
     NodeRepository,
     NotificationRepository,
     RedisFactory,
+    SocketGateway,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RoleGuard },
   ],

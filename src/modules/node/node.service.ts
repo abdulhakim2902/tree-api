@@ -383,6 +383,26 @@ export class NodeService {
     return { nodes };
   }
 
+  async relatives(id: string) {
+    const node = await this.nodeRepository.findById(id);
+    const relativeIds = [
+      ...node.parents,
+      ...node.siblings,
+      ...node.spouses,
+      ...node.siblings,
+    ].map((node) => node.id);
+
+    const match: PipelineStage.Match = {
+      $match: {
+        _id: { $in: [...relativeIds, node._id] },
+      },
+    };
+
+    const nodes = await this.treeNode(match);
+
+    return { nodes };
+  }
+
   async families(id: string) {
     const node = await this.nodeRepository.findById(id);
     return { id: node.id, data: node.families, total: node.families.length };

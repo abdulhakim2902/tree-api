@@ -28,6 +28,7 @@ import { isVowel, parse } from 'src/helper/string';
 import { NodeRepository } from '../node/node.repository';
 import { ConnectNodeDto } from './dto/connect-node.dto';
 import { UserProfile } from 'src/interfaces/user-profile.interface';
+import { SocketGateway } from '../socket/socket.gateway';
 
 const TTL = 60 * 60; // 1HOUR
 
@@ -41,6 +42,7 @@ export class UserService {
     private readonly notificationRepository: NotificationRepository,
     private readonly mailService: MailService,
     private readonly redisService: RedisService,
+    private readonly socket: SocketGateway,
   ) {}
 
   async me(id: string) {
@@ -234,7 +236,6 @@ export class UserService {
   }
 
   async createInvitation(data: InviteRequestUserDto[]) {
-    const notifications = [];
     for (const e of data) {
       const toUser = await this.userRepository.findOne({ email: e.email });
 
@@ -291,21 +292,18 @@ export class UserService {
 
         await this.redisService.set(this.prefix, token, payloadStr);
         await this.redisService.set(this.prefix, toUser.id, tokensStr);
-
-        notifications.push(
-          this.notificationRepository.findAndModify(
-            {
-              referenceId: token,
-              read: false,
-              type: NotificationType.INVITATION,
-            },
-            notification,
-          ),
+        await this.notificationRepository.findAndModify(
+          {
+            referenceId: token,
+            read: false,
+            type: NotificationType.INVITATION,
+          },
+          notification,
         );
+
+        await this.sendNotification(toUser.id);
       }
     }
-
-    await Promise.all(notifications);
 
     return {
       message: 'Invitation is sent',
@@ -356,6 +354,8 @@ export class UserService {
       { referenceId: token, read: false, type: NotificationType.REQUEST },
       notification,
     );
+
+    await this.sendNotification(toUser.id);
 
     return {
       message: 'Request is sent',
@@ -414,6 +414,7 @@ export class UserService {
     await this.redisService.set(this.prefix, token, payloadStr);
     await this.redisService.set(this.prefix, id, tokensStr);
     await this.notificationRepository.insert(notification);
+    await this.sendNotification(toUser.id);
 
     return {
       message: 'Connect request is sent',
@@ -555,6 +556,7 @@ export class UserService {
     await toUser.save();
     await this.redisService.del('auth', toUser.id);
     await this.notificationRepository.insert(notification);
+    await this.sendNotification(toUser.id, 'logout');
 
     return {
       message: 'Request is accepted',
@@ -604,6 +606,7 @@ export class UserService {
 
     await this.handleRemoveToken(token);
     await this.notificationRepository.insert(notification);
+    await this.sendNotification(toUser.id);
 
     return {
       message: 'Request is rejected',
@@ -760,6 +763,7 @@ export class UserService {
     };
 
     await this.notificationRepository.insert(notification);
+    await this.sendNotification(user.id, 'logout');
 
     return {
       message: 'Connect request is accepted',
@@ -938,5 +942,17 @@ export class UserService {
     }
 
     return token;
+  }
+
+  private async sendNotification(to: string, action?: string) {
+    try {
+      const { count } = await this.notificationRepository.count({
+        to,
+        read: false,
+      });
+      await this.socket.sendNotification({ to, count, action });
+    } catch {
+      // ignore
+    }
   }
 }
