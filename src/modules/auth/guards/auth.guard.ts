@@ -87,7 +87,8 @@ export class AuthGuard implements CanActivate {
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {
-    const headers = request.headers;
+    const webSocketHeaders = request?.['handshake']?.['headers'];
+    const headers = request.headers ?? webSocketHeaders;
     const authorization = headers.authorization;
     const [type, token] = authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;

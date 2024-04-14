@@ -199,7 +199,11 @@ export class NodeService {
       );
     }
 
-    return this.nodeRepository.bulkSave([child, ...parents]);
+    await this.nodeRepository.bulkSave([child, ...parents]);
+
+    return {
+      ids: parents.map((e) => e.id),
+    };
   }
 
   async createSpouses(id: string, data: CreateNodeDto[]) {
@@ -232,7 +236,11 @@ export class NodeService {
       }
     }
 
-    return this.nodeRepository.bulkSave([node, ...spouses]);
+    await this.nodeRepository.bulkSave([node, ...spouses]);
+
+    return {
+      ids: spouses.map((e) => e.id),
+    };
   }
 
   async createChild(id: string, data: CreateChildDto) {
@@ -287,7 +295,9 @@ export class NodeService {
       }
     }
 
-    return this.nodeRepository.bulkSave([...parents, child]);
+    await this.nodeRepository.bulkSave([...parents, child]);
+
+    return { id: child.id };
   }
 
   async createSibling(id: string, data: CreateNodeDto) {
@@ -384,7 +394,12 @@ export class NodeService {
   }
 
   async relatives(id: string) {
-    const node = await this.nodeRepository.findById(id);
+    const nodeId = new mongoose.Types.ObjectId(id);
+    const [node] = await this.treeNode({ $match: { _id: nodeId } });
+    if (!node) {
+      throw new BadRequestException('Node not found');
+    }
+
     const relativeIds = [
       ...node.parents,
       ...node.siblings,
@@ -394,13 +409,13 @@ export class NodeService {
 
     const match: PipelineStage.Match = {
       $match: {
-        _id: { $in: [...relativeIds, node._id] },
+        _id: { $in: relativeIds },
       },
     };
 
     const nodes = await this.treeNode(match);
 
-    return { nodes };
+    return { node, nodes };
   }
 
   async families(id: string) {
