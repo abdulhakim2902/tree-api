@@ -10,7 +10,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
 import { Express } from 'express';
@@ -20,6 +20,7 @@ import { Roles } from 'src/decorators/role';
 import { Role } from 'src/enums/role.enum';
 import { CREATE, DELETE, READ } from 'src/constants/permission';
 import { QueryFileDto } from './dto/query-file.dto';
+import { FileType } from 'src/enums/file-type.enum';
 
 @ApiBearerAuth()
 @ApiTags(Tag.FILE)
@@ -44,10 +45,9 @@ export class FileController {
     return this.fileService.createFile(file, data);
   }
 
-  @Delete('/:id')
+  @Delete('/:id/:type')
   @Roles(DELETE)
-  @ApiQuery({ type: String, name: 'type', required: false })
-  async deleteById(@Param('id') id: string, @Query('type') type?: string) {
+  async deleteById(@Param('id') id: string, @Param('type') type: FileType) {
     return this.fileService.deleteFile(id, type);
   }
 }

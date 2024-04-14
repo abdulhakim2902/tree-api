@@ -1,19 +1,13 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AuthModule } from './modules/auth';
-import { UserModule } from './modules/user';
-import { NodeModule } from './modules/node';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { CloudinaryModule } from 'nestjs-cloudinary';
-import { FileModule } from './modules/file';
 import { MailerModule } from '@nestjs-modules/mailer';
-import { MailModule } from './modules/mail';
-import { NotificationModule } from './modules/notification';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { SocketModule } from './modules/socket';
+import { Modules } from './modules';
 
 @Module({
   imports: [
@@ -66,13 +60,7 @@ import { SocketModule } from './modules/socket';
         },
       ],
     }),
-    AuthModule,
-    UserModule,
-    NodeModule,
-    FileModule,
-    MailModule,
-    SocketModule,
-    NotificationModule,
+    Modules,
   ],
   controllers: [],
   providers: [

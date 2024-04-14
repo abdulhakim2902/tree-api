@@ -50,28 +50,20 @@ export class FileService {
     }
   }
 
-  async deleteFile(id: string, type?: string) {
-    if (type === 'node') {
-      const files = await this.findFiles({ id, type: FileType.NODE });
+  async deleteFile(id: string, type: FileType) {
+    try {
+      const files = await this.findFiles({ id, type });
       const publicIds = files.map((file) => file.publicId);
       await this.fileRepository.deleteMany({ publicId: { $in: publicIds } });
-      await this.cloudinaryService.cloudinary.api
-        .delete_folder(id)
-        .catch(console.log);
-      await this.cloudinaryService.cloudinary.api.delete_all_resources({
-        public_ids: publicIds,
-      });
+      await this.cloudinaryService.cloudinary.api.delete_folder(id);
+
       return {
         id,
         message: 'Successfully delete file',
       };
+    } catch {
+      // ignore
     }
-
-    const file = await this.fileRepository.findById(id);
-    await this.cloudinaryService.cloudinary.api.delete_resources([
-      file.publicId,
-    ]);
-    await this.fileRepository.deleteById(id);
 
     return {
       id,
