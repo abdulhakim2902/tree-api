@@ -97,6 +97,16 @@ export class AuthService {
     const sessionToken = await this.jwtService.signAsync(payload, { secret });
     const cacheData = { id: user.id, secret: randSecret, token: sessionToken };
 
+    const activeUsersCache = await this.redisService.get(
+      this.prefix,
+      'active_users',
+    );
+
+    const activeUsers = parse<string[]>(activeUsersCache) ?? [];
+    activeUsers.push(user.id);
+    const str = JSON.stringify(activeUsers);
+
+    await this.redisService.set(this.prefix, 'active_users', str);
     await this.redisService.set(
       this.prefix,
       user.id,
@@ -105,5 +115,23 @@ export class AuthService {
     );
 
     return { token: sessionToken, verified: true };
+  }
+
+  async logout(id: string) {
+    const activeUsersCache = await this.redisService.get(
+      this.prefix,
+      'active_users',
+    );
+
+    const activeUsers = parse<string[]>(activeUsersCache) ?? [];
+    const updatedActiveUsers = activeUsers.filter((e) => e !== id);
+    const str = JSON.stringify(updatedActiveUsers);
+
+    await this.redisService.set(this.prefix, 'active_users', str);
+    await this.redisService.del(this.prefix, id);
+
+    return {
+      message: 'Successfully sign out',
+    };
   }
 }
