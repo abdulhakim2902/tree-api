@@ -91,6 +91,12 @@ export class Node extends Document {
   })
   userId: string;
 
+  @Prop({
+    type: Date,
+    required: false,
+  })
+  deletedAt: string;
+
   totalParents(type: RelationType | ParentRelationType): number {
     return this.parents.filter((e) => e.type === type).length;
   }

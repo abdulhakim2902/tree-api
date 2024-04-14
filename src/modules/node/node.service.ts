@@ -31,13 +31,17 @@ export class NodeService {
     return this.nodeRepository.insert(data);
   }
 
-  async deleteById(id: string) {
+  async hardDeleteById(id: string) {
+    await this.nodeRepository.deleteById(id);
+  }
+
+  async softDeleteById(id: string) {
     const node = await this.nodeRepository.findById(id);
     if (node.children.length > 0) {
       throw new UnprocessableEntityException('Node children existed');
     }
 
-    await this.nodeRepository.deleteById(id);
+    await this.nodeRepository.updateById(id, { deletedAt: new Date() });
     await this.nodeRepository.updateMany(
       {},
       {
@@ -50,6 +54,23 @@ export class NodeService {
         },
       },
     );
+
+    const relativeIds = [
+      ...node.parents,
+      ...node.siblings,
+      ...node.spouses,
+      ...node.siblings,
+    ].map((node) => node.id);
+
+    const match: PipelineStage.Match = {
+      $match: {
+        _id: { $in: relativeIds },
+      },
+    };
+
+    const nodes = await this.treeNode(match);
+
+    return { nodes };
   }
 
   async findById(id: string): Promise<Node> {
@@ -486,6 +507,7 @@ export class NodeService {
           siblings: 1,
           children: 1,
           spouses: 1,
+          deletedAt: 1,
           data: {
             id: { $toString: '$_id' },
             name: isPublic

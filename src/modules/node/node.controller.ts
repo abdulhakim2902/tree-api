@@ -108,7 +108,7 @@ export class NodeController {
   @Delete('/:id')
   @Roles(DELETE)
   async deleteById(@Param('id') id: string) {
-    return this.nodeService.deleteById(id);
+    return this.nodeService.softDeleteById(id);
   }
 
   @ApiBody({ type: UpdateNodeProfileDto, isArray: false })
