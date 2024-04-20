@@ -12,7 +12,7 @@ export class NodeRelation extends Document {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
   })
-  id: string;
+  id: mongoose.Types.ObjectId;
 
   @Prop({
     type: String,

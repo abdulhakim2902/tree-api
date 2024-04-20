@@ -46,7 +46,7 @@ export class NodeController {
   @Roles(READ)
   @Get('/:id')
   async node(@Param('id') id: string) {
-    return this.nodeService.findById(id);
+    return this.nodeService.findNode(id);
   }
 
   @Roles(READ)
@@ -74,41 +74,35 @@ export class NodeController {
   @Roles(CREATE)
   @Post('/:id/parents')
   async createParents(@Param('id') id: string, @Body() data: CreateParentsDto) {
-    return this.nodeService.createParents(id, data);
+    return this.nodeService.createNodeRelatives(id, 'parents', data);
   }
 
   @ApiBody({ type: CreateNodeDto, isArray: true })
   @Roles(CREATE)
   @Post('/:id/spouses')
   async createSpouses(@Param('id') id: string, @Body() data: CreateNodeDto[]) {
-    return this.nodeService.createSpouses(id, data);
+    return this.nodeService.createNodeRelatives(id, 'spouses', data);
   }
 
   @ApiBody({ type: CreateChildDto, isArray: false })
   @Roles(CREATE)
   @Post('/:id/child')
   async createChild(@Param('id') id: string, @Body() data: CreateChildDto) {
-    return this.nodeService.createChild(id, data);
+    return this.nodeService.createNodeRelatives(id, 'children', data);
   }
 
   @ApiBody({ type: CreateNodeDto, isArray: false })
   @Roles(CREATE)
   @Post('/:id/sibling')
   async createSibling(@Param('id') id: string, @Body() data: CreateNodeDto) {
-    return this.nodeService.createSibling(id, data);
+    return this.nodeService.createNodeRelatives(id, 'siblings', data);
   }
 
   @ApiBody({ type: UpdateNodeDto, isArray: false })
   @Roles(UPDATE)
   @Patch('/:id')
   async updateById(@Param('id') id: string, @Body() data: UpdateNodeDto) {
-    return this.nodeService.updateById(id, data);
-  }
-
-  @Delete('/:id')
-  @Roles(DELETE)
-  async deleteById(@Param('id') id: string) {
-    return this.nodeService.softDeleteById(id);
+    return this.nodeService.updateNode(id, data);
   }
 
   @ApiBody({ type: UpdateNodeProfileDto, isArray: false })
@@ -118,6 +112,12 @@ export class NodeController {
     @Param('id') id: string,
     @Body() data: UpdateNodeProfileDto,
   ) {
-    return this.nodeService.updateProfileById(id, data);
+    return this.nodeService.updateNodeProfile(id, data);
+  }
+
+  @Delete('/:id')
+  @Roles(DELETE)
+  async deleteById(@Param('id') id: string) {
+    return this.nodeService.deleteNode(id);
   }
 }

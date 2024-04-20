@@ -20,7 +20,6 @@ import { Roles } from 'src/decorators/role';
 import { Role } from 'src/enums/role.enum';
 import { CREATE, DELETE, READ } from 'src/constants/permission';
 import { QueryFileDto } from './dto/query-file.dto';
-import { FileType } from 'src/enums/file-type.enum';
 
 @ApiBearerAuth()
 @ApiTags(Tag.FILE)
@@ -45,9 +44,15 @@ export class FileController {
     return this.fileService.createFile(file, data);
   }
 
-  @Delete('/:id/:type')
+  @Delete('/:id')
   @Roles(DELETE)
-  async deleteById(@Param('id') id: string, @Param('type') type: FileType) {
-    return this.fileService.deleteFile(id, type);
+  async deleteById(@Param('id') id: string) {
+    return this.fileService.deleteFile(id);
+  }
+
+  @Delete('/node/:id')
+  @Roles(DELETE)
+  async delete(@Param('id') id: string) {
+    return this.fileService.deleteFiles(id);
   }
 }

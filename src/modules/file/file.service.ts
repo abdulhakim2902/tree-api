@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Express } from 'express';
 import { UploadFileDto } from './dto/upload-file.dto';
 import { File } from './file.schema';
 import { CloudinaryService } from 'nestjs-cloudinary';
@@ -50,17 +49,22 @@ export class FileService {
     }
   }
 
-  async deleteFile(id: string, type: FileType) {
+  async deleteFile(id: string) {
+    await this.fileRepository.deleteMany({ _id: id });
+
+    return {
+      id,
+      message: 'Successfully delete file',
+    };
+  }
+
+  async deleteFiles(id: string) {
+    const files = await this.findFiles({ id, type: FileType.NODE });
+    const publicIds = files.map((file) => file.publicId);
+
     try {
-      const files = await this.findFiles({ id, type });
-      const publicIds = files.map((file) => file.publicId);
       await this.fileRepository.deleteMany({ publicId: { $in: publicIds } });
       await this.cloudinaryService.cloudinary.api.delete_folder(id);
-
-      return {
-        id,
-        message: 'Successfully delete file',
-      };
     } catch {
       // ignore
     }

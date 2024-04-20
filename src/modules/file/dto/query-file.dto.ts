@@ -20,5 +20,5 @@ export class QueryFileDto {
   @IsEnum(FileType)
   @IsOptional()
   @IsString()
-  type: FileType;
+  type?: FileType;
 }

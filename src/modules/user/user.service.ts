@@ -950,7 +950,7 @@ export class UserService {
         to,
         read: false,
       });
-      await this.socket.sendNotification({ to, count, action });
+      await this.socket.sendNotification(to, count, action);
     } catch {
       // ignore
     }
