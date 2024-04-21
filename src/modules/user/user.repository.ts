@@ -1,5 +1,5 @@
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, UpdateQuery } from 'mongoose';
 import { CreateUserDto } from './dto';
 import { User } from 'src/modules/user/user.schema';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -41,7 +41,7 @@ export class UserRepository {
     }
   }
 
-  async updateById(id: string, data: Record<string, any>): Promise<User> {
+  async updateById(id: string, data: UpdateQuery<User>): Promise<User> {
     let user: User;
 
     try {

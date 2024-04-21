@@ -99,6 +99,14 @@ export class UserController {
     return this.userService.update(id, data);
   }
 
+  @Post('/update-email/:token')
+  async updateEmail(
+    @UserProfile('id') id: string,
+    @Param('token') token: string,
+  ) {
+    return this.userService.handleEmailUpdate(id, token);
+  }
+
   @Public()
   @Get('/invitation/:token')
   async invitation(@Param('token') token: string) {

@@ -16,6 +16,7 @@ import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
 import {
   ConnectRequest,
+  UpdateUser,
   UserInvitation,
   UserToken,
 } from 'src/interfaces/user-invitations';
@@ -187,11 +188,34 @@ export class UserService {
   }
 
   async update(id: string, data: UpdateUserDto): Promise<User> {
-    const user = await this.userRepository.updateById(id, { $set: data });
+    if (data.email) {
+      const user = await this.userRepository.findById(id);
+      const cache = await this.redisService.get(this.prefix, id);
+      const tokens = parse<UserToken>(cache) ?? {};
+      const currentToken = tokens?.[UserStatus.EMAIL_UPDATE];
+      const token = currentToken ?? (await this.generateOTP());
+      const payload = {
+        currentEmail: user.email,
+        updatedEmail: data.email,
+        status: UserStatus.EMAIL_UPDATE,
 
-    await this.redisService.del('auth', user.id);
+        type: 'email-update',
+        token: token,
+      };
 
-    return user;
+      tokens[UserStatus.EMAIL_UPDATE] = token;
+
+      const payloadStr = JSON.stringify(payload);
+      const tokenStr = JSON.stringify(tokens);
+
+      await this.redisService.set(this.prefix, token, payloadStr, TTL);
+      await this.redisService.set(this.prefix, id, tokenStr);
+      await this.mailService.sendEmailTo(data.email, payload);
+
+      return user;
+    }
+
+    return this.userRepository.updateById(id, { $set: data });
   }
 
   async findOne(filter: Record<string, any>): Promise<User> {
@@ -227,7 +251,8 @@ export class UserService {
 
     if (
       data.status === UserStatus.NEW_USER ||
-      data.status === UserStatus.REGISTRATION
+      data.status === UserStatus.REGISTRATION ||
+      data.status === UserStatus.EMAIL_UPDATE
     ) {
       return data;
     }
@@ -419,6 +444,41 @@ export class UserService {
     return {
       message: 'Connect request is sent',
     };
+  }
+
+  async handleEmailUpdate(id: string, token: string) {
+    const cache = await this.redisService.get(this.prefix, id);
+    const tokens = parse<UserToken>(cache) ?? {};
+    const currentToken = tokens?.[UserStatus.EMAIL_UPDATE];
+
+    if (token !== currentToken) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    const payloadCache = await this.redisService.get(this.prefix, currentToken);
+    if (!payloadCache) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const payload = parse<UpdateUser>(payloadCache);
+    if (!payload) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    if (payload.status !== UserStatus.EMAIL_UPDATE) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    delete tokens[UserStatus.EMAIL_UPDATE];
+
+    await this.userRepository.updateById(id, {
+      $set: { email: payload.updatedEmail },
+    });
+
+    await this.redisService.del(this.prefix, currentToken);
+    await this.redisService.set(this.prefix, id, JSON.stringify(tokens));
+
+    return { message: 'Successfully update email' };
   }
 
   async handleInvitation(token: string, action: RequestAction) {

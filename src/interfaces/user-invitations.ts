@@ -23,6 +23,11 @@ export type ConnectRequest = Status & {
   nodeId: string;
 };
 
+export type UpdateUser = Status & {
+  currentEmail: string;
+  updatedEmail: string;
+};
+
 export type Status = {
   status: UserStatus;
 };

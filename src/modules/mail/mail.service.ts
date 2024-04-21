@@ -7,12 +7,14 @@ import { getInviteHtml } from './template/invite';
 import { getEmailFoundHtml } from './template/email-found';
 import { getRegistrationAcceptedHtml } from './template/registration-accepted';
 import { getRegistrationRejectedHtml } from './template/registration-rejected';
+import { getEmailUpdateHtml } from './template/email-update';
 
 type Type =
   | 'registration'
   | 'invites'
   | 'email-found'
-  | 'registration-accepted';
+  | 'registration-accepted'
+  | 'email-update';
 
 @Injectable()
 export class MailService {
@@ -61,6 +63,10 @@ export class MailService {
       return 'Admin has shared a family tree with you.';
     }
 
+    if (type === 'email-update') {
+      return 'Update email request.';
+    }
+
     return 'Admin has rejected your registration';
   }
 
@@ -81,11 +87,6 @@ export class MailService {
   private getHtml(data: any): string {
     const appURL = this.config.get<string>('APP_URL');
     const type = data.type;
-    if (type === 'registration') {
-      const inviteLink = `${appURL}/?token=${data.token}`;
-      return getRegistrationHtml(data.email, inviteLink, appURL);
-    }
-
     if (type === 'registration-accepted') {
       return getRegistrationAcceptedHtml(appURL);
     }
@@ -99,6 +100,14 @@ export class MailService {
     }
 
     const inviteLink = this.getInviteLink(data.token);
+    if (type === 'registration') {
+      return getRegistrationHtml(data.email, inviteLink, appURL);
+    }
+
+    if (type === 'email-update') {
+      return getEmailUpdateHtml(data.updatedEmail, inviteLink, appURL);
+    }
+
     const permissionList = this.getPermissions(data.role);
     return getInviteHtml(data.role, inviteLink, permissionList, appURL);
   }
