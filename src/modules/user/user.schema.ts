@@ -61,11 +61,6 @@ export class User extends Document {
     ref: File.name,
   })
   profileImage: File;
-
-  @Prop({
-    type: mongoose.Types.ObjectId,
-  })
-  nodeId: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

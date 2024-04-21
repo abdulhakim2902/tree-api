@@ -13,8 +13,6 @@ import {
 import { Public } from 'src/decorators/public';
 import { RequestAction } from 'src/enums/request-action';
 import { UserProfile } from 'src/decorators/user-profile';
-import { ConnectNodeDto } from './dto/connect-node.dto';
-import { UserProfile as User } from 'src/interfaces/user-profile.interface';
 
 @ApiBearerAuth()
 @ApiTags(Tag.USER)
@@ -44,14 +42,6 @@ export class UserController {
     return this.userService.createRequest(id, data);
   }
 
-  @Post('/connect-node')
-  async connectNode(
-    @UserProfile('id') id: string,
-    @Body() data: ConnectNodeDto,
-  ) {
-    return this.userService.connectNode(id, data);
-  }
-
   @Roles([Role.SUPERADMIN])
   @Post('/requests/:token/:action')
   async handleRequest(
@@ -62,29 +52,12 @@ export class UserController {
   }
 
   @Roles([Role.SUPERADMIN])
-  @Post('/connect-node/:token/:action')
-  async handleConnect(
-    @Param('token') token: string,
-    @Param('action') action: RequestAction,
-  ) {
-    return this.userService.handleConnect(token, action);
-  }
-
-  @Roles([Role.SUPERADMIN])
   @Post('/registration/:token/:action')
   async handleRegistration(
     @Param('token') token: string,
     @Param('action') action: RequestAction,
   ) {
     return this.userService.handleRegistration(token, action);
-  }
-
-  @Post('/disconnect-node/:nodeId')
-  async handleDisconnect(
-    @UserProfile() user: User,
-    @Param('nodeId') nodeId: string,
-  ) {
-    return this.userService.handleDisconnect(user, nodeId);
   }
 
   @Roles([Role.SUPERADMIN])

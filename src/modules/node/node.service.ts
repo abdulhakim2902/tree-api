@@ -343,9 +343,6 @@ export class NodeService {
             profileImageURL: isPublic ? '$$REMOVE' : '$profileImage.url',
             gender: '$gender',
             birth: isPublic ? '$$REMOVE' : '$birth',
-            user: {
-              id: '$userId',
-            },
           },
         },
       },

@@ -17,7 +17,6 @@ import * as crypto from 'crypto';
 import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
 import {
-  ConnectRequest,
   UpdateUser,
   UserInvitation,
   UserToken,
@@ -28,9 +27,6 @@ import { startCase } from 'lodash';
 import { NotificationRepository } from '../notification/notification.repository';
 import { RedisService } from '../redis/redis.service';
 import { isVowel, parse } from 'src/helper/string';
-import { NodeRepository } from '../node/node.repository';
-import { ConnectNodeDto } from './dto/connect-node.dto';
-import { UserProfile } from 'src/interfaces/user-profile.interface';
 import { SocketGateway } from '../socket/socket.gateway';
 import { UpdateQuery } from 'mongoose';
 
@@ -42,7 +38,6 @@ export class UserService {
 
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly nodeRepository: NodeRepository,
     private readonly notificationRepository: NotificationRepository,
     private readonly mailService: MailService,
     private readonly redisService: RedisService,
@@ -58,7 +53,6 @@ export class UserService {
       username: user.username,
       email: user.email,
       role: user.role,
-      nodeId: user.nodeId,
     };
 
     if (userWithProfileImage?.profileImage?.url) {
@@ -418,65 +412,6 @@ export class UserService {
     };
   }
 
-  async connectNode(id: string, data: ConnectNodeDto) {
-    const { nodeId } = data;
-
-    const cache = await this.redisService.get(this.prefix, id);
-    const tokens = parse<UserToken>(cache) ?? {};
-    const currentToken = tokens?.[UserStatus.CONNECT_REQUEST];
-    if (currentToken) {
-      throw new BadRequestException('Request already sent');
-    }
-
-    const user = await this.userRepository.findById(id);
-    if (user.nodeId) {
-      throw new BadRequestException('Node already connected');
-    }
-
-    const userWithNode = await this.userRepository.findOne({ nodeId });
-    if (userWithNode) {
-      throw new BadRequestException('Node already connected');
-    }
-
-    const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
-    if (!toUser) {
-      throw new BadRequestException('Admin not found');
-    }
-
-    const node = await this.nodeRepository.findById(nodeId);
-    const token = await this.generateOTP();
-    const status = UserStatus.CONNECT_REQUEST;
-    const payload = { userId: user.id, nodeId: node.id, status };
-
-    const notification = {
-      read: false,
-      type: NotificationType.CONNECT,
-      referenceId: token,
-      additionalReferenceId: `${node.id}:${user.email}:${user.name}`,
-      message: `<b>${startCase(
-        user.name,
-      )}</b> is requesting to connect <b>${startCase(
-        node.fullname,
-      )}</b> node profile.`,
-      to: toUser._id,
-      action: true,
-    };
-
-    tokens[UserStatus.CONNECT_REQUEST] = token;
-
-    const payloadStr = JSON.stringify(payload);
-    const tokensStr = JSON.stringify(tokens);
-
-    await this.redisService.set(this.prefix, token, payloadStr);
-    await this.redisService.set(this.prefix, id, tokensStr);
-    await this.notificationRepository.insert(notification);
-    await this.sendNotification(toUser.id);
-
-    return {
-      message: 'Connect request is sent',
-    };
-  }
-
   async handleEmailUpdate(id: string, token: string) {
     const cache = await this.redisService.get(this.prefix, id);
     const tokens = parse<UserToken>(cache) ?? {};
@@ -546,49 +481,6 @@ export class UserService {
     }
 
     throw new BadRequestException('Invalid handle registration request');
-  }
-
-  async handleConnect(token: string, action: RequestAction) {
-    if (action === RequestAction.ACCEPT) {
-      return this.acceptConnect(token);
-    }
-
-    if (action === RequestAction.REJECT) {
-      return this.rejectConnect(token);
-    }
-
-    throw new BadRequestException('Invalid handle request');
-  }
-
-  async handleDisconnect(userProfile: UserProfile, nodeId: string) {
-    if (userProfile.nodeId !== nodeId) {
-      throw new BadRequestException('Invalid node');
-    }
-
-    const user = await this.userRepository.findById(userProfile.id);
-    if (!user.nodeId) {
-      throw new BadRequestException('User node not found');
-    }
-
-    const node = await this.nodeRepository.findById(nodeId);
-
-    if (!node.userId) {
-      throw new BadRequestException('Node user not found');
-    }
-
-    await this.userRepository.updateById(userProfile.id, {
-      $unset: { nodeId: '' },
-    });
-
-    await this.nodeRepository.updateById(nodeId, {
-      $unset: { userId: '' },
-    });
-
-    await this.redisService.del('auth', user.id);
-
-    return {
-      message: 'Successfully disconnect node',
-    };
   }
 
   private async acceptRequest(token: string) {
@@ -803,110 +695,6 @@ export class UserService {
     };
 
     return this.notificationRepository.insert(notification);
-  }
-
-  private async acceptConnect(token: string) {
-    const cache = await this.redisService.get(this.prefix, token);
-    if (!cache) {
-      throw new BadRequestException('Expired token');
-    }
-
-    const request = parse<ConnectRequest>(cache);
-    if (!request) {
-      throw new BadRequestException('Request not found');
-    }
-
-    if (request.status !== UserStatus.CONNECT_REQUEST) {
-      throw new BadRequestException('Invalid connect request');
-    }
-
-    const user = await this.userRepository.findById(request.userId);
-    const node = await this.nodeRepository.findById(request.nodeId);
-
-    node.userId = user._id;
-    user.nodeId = node._id;
-
-    await user.save();
-    await node.save();
-
-    const tokensStr = await this.redisService.get(this.prefix, user.id);
-    const tokens = parse<UserToken>(tokensStr) ?? {};
-
-    delete tokens[UserStatus.CONNECT_REQUEST];
-
-    if (Object.values(tokens).length <= 0) {
-      await this.redisService.del(this.prefix, user.id);
-    } else {
-      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
-    }
-
-    await this.handleRemoveToken(token);
-    await this.redisService.del('auth', user.id);
-
-    const notification = {
-      read: false,
-      type: NotificationType.CONNECT,
-      message: `Admin <b>approved</b> your connect request of <b>${startCase(
-        node.fullname,
-      )}</b> node profile. Please sign in again to make changes.`,
-      to: user.id,
-      action: false,
-    };
-
-    await this.notificationRepository.insert(notification);
-    await this.sendNotification(user.id, 'logout');
-
-    return {
-      message: 'Connect request is accepted',
-    };
-  }
-
-  private async rejectConnect(token: string) {
-    const cache = await this.redisService.get(this.prefix, token);
-    if (!cache) {
-      throw new BadRequestException('Expired token');
-    }
-
-    const request = parse<ConnectRequest>(cache);
-    if (!request) {
-      throw new BadRequestException('Request not found');
-    }
-
-    if (request.status !== UserStatus.CONNECT_REQUEST) {
-      throw new BadRequestException('Request not found');
-    }
-
-    const user = await this.userRepository.findById(request.userId);
-    const node = await this.nodeRepository.findById(request.nodeId);
-
-    const tokensStr = await this.redisService.get(this.prefix, user.id);
-    const tokens = parse<UserToken>(tokensStr) ?? {};
-
-    delete tokens[UserStatus.CONNECT_REQUEST];
-
-    if (Object.values(tokens).length <= 0) {
-      await this.redisService.del(this.prefix, user.id);
-    } else {
-      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
-    }
-
-    await this.handleRemoveToken(token);
-
-    const notification = {
-      read: false,
-      type: NotificationType.CONNECT,
-      message: `Admin <b>rejected</b> your connect request of ${startCase(
-        node.fullname,
-      )}`,
-      to: user.id,
-      action: false,
-    };
-
-    await this.notificationRepository.insert(notification);
-
-    return {
-      message: 'Connect request is rejected',
-    };
   }
 
   private async acceptRegistration(token: string) {

@@ -18,11 +18,6 @@ export type Verified = {
   admin: boolean;
 };
 
-export type ConnectRequest = Status & {
-  userId: string;
-  nodeId: string;
-};
-
 export type UpdateUser = Status & {
   currentEmail: string;
   updatedEmail: string;
