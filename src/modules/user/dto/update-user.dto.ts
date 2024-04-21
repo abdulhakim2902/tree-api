@@ -1,5 +1,32 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
+export class UpdatePasswordDto {
+  @ApiProperty({
+    type: String,
+    required: true,
+  })
+  @IsString()
+  @IsNotEmpty()
+  current: string;
+
+  @ApiProperty({
+    type: String,
+    required: true,
+  })
+  @IsString()
+  @MinLength(6)
+  @IsNotEmpty()
+  new: string;
+}
 
 export class UpdateUserDto {
   @ApiProperty({
@@ -14,14 +41,13 @@ export class UpdateUserDto {
   email: string;
 
   @ApiProperty({
-    type: String,
+    type: UpdatePasswordDto,
     required: false,
-    example: 'password',
   })
-  @IsString()
-  @MinLength(6)
+  @ValidateNested()
+  @Type(() => UpdatePasswordDto)
   @IsOptional()
-  password: string;
+  password: UpdatePasswordDto;
 
   @ApiProperty({
     type: String,

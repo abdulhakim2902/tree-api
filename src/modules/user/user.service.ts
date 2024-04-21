@@ -1,3 +1,5 @@
+import * as bcrypt from 'bcrypt';
+
 import {
   BadRequestException,
   Injectable,
@@ -30,6 +32,7 @@ import { NodeRepository } from '../node/node.repository';
 import { ConnectNodeDto } from './dto/connect-node.dto';
 import { UserProfile } from 'src/interfaces/user-profile.interface';
 import { SocketGateway } from '../socket/socket.gateway';
+import { UpdateQuery } from 'mongoose';
 
 const TTL = 60 * 60; // 1HOUR
 
@@ -225,7 +228,25 @@ export class UserService {
       return user;
     }
 
-    return this.userRepository.updateById(id, { $set: data });
+    const update = {} as UpdateQuery<User>;
+
+    if (data.password) {
+      const { current, new: newPasword } = data.password;
+      const user = await this.userRepository.findById(id);
+      const isValid = await bcrypt.compare(current, user.password);
+      if (!isValid) {
+        throw new BadRequestException('Invalid password');
+      }
+
+      const salt = bcrypt.genSaltSync(10);
+
+      update.password = bcrypt.hashSync(newPasword, salt);
+    }
+
+    if (data.name) update.name = data.name;
+    if (data.profileImage) update.profileImage = data.profileImage;
+
+    return this.userRepository.updateById(id, update);
   }
 
   async findOne(filter: Record<string, any>): Promise<User> {
