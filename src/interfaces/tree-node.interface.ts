@@ -60,7 +60,6 @@ export type TreeNode = {
   children: TreeNodeRelation[];
   siblings: TreeNodeRelation[];
   data: TreeNodeData;
-  deletedAt?: string;
 };
 
 export type TreeNodeFamily = {

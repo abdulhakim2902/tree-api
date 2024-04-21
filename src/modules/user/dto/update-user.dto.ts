@@ -31,4 +31,13 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   name: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: '65e1db14709176c98629fe9c',
+  })
+  @IsString()
+  @IsOptional()
+  profileImage: string;
 }

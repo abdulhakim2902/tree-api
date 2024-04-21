@@ -4,6 +4,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { startCase } from 'src/helper/string';
 import { Role } from 'src/enums/role.enum';
+import { File } from '../file/file.schema';
 
 export type UserDocument = User & Document;
 
@@ -56,9 +57,10 @@ export class User extends Document {
   role: Role;
 
   @Prop({
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: File.name,
   })
-  profilImageURL: string;
+  profileImage: File;
 
   @Prop({
     type: mongoose.Types.ObjectId,

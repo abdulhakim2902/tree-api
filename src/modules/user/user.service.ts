@@ -48,7 +48,8 @@ export class UserService {
 
   async me(id: string) {
     const user = await this.userRepository.findById(id);
-    return {
+    const userWithProfileImage = await user.populate('profileImage');
+    const result = {
       id: user.id,
       name: user.name,
       username: user.username,
@@ -56,6 +57,15 @@ export class UserService {
       role: user.role,
       nodeId: user.nodeId,
     };
+
+    if (userWithProfileImage?.profileImage?.url) {
+      const { _id, url } = userWithProfileImage.profileImage;
+      Object.assign(result, {
+        profileImageURL: `${_id};${url}`,
+      });
+    }
+
+    return result;
   }
 
   async insert(data: CreateUserDto, token?: string): Promise<User> {

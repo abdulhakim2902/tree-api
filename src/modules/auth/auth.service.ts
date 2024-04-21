@@ -18,6 +18,7 @@ import { RedisService } from '../redis/redis.service';
 import { ConfigService } from '@nestjs/config';
 import { generateRandomString, parse } from 'src/helper/string';
 import { UserInvitation } from 'src/interfaces/user-invitations';
+import { uniq } from 'lodash';
 
 @Injectable()
 export class AuthService {
@@ -104,7 +105,7 @@ export class AuthService {
 
     const activeUsers = parse<string[]>(activeUsersCache) ?? [];
     activeUsers.push(user.id);
-    const str = JSON.stringify(activeUsers);
+    const str = JSON.stringify(uniq(activeUsers));
 
     await this.redisService.set(this.prefix, 'active_users', str);
     await this.redisService.set(

@@ -312,7 +312,6 @@ export class NodeService {
           siblings: 1,
           children: 1,
           spouses: 1,
-          deletedAt: 1,
           data: {
             id: { $toString: '$_id' },
             name: isPublic
