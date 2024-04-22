@@ -1,4 +1,5 @@
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 import {
   BadRequestException,
@@ -9,11 +10,7 @@ import { CreateUserDto, UpdateUserDto } from './dto';
 import { User } from 'src/modules/user/user.schema';
 import { UserRepository } from 'src/modules/user/user.repository';
 import { Role } from 'src/enums/role.enum';
-import {
-  InviteRequestUserDto,
-  InviteRequestUserRoleDto,
-} from './dto/invite-request-user.dto';
-import * as crypto from 'crypto';
+import { RoleInviteDto, RoleRequestDto } from './dto/invite-request-user.dto';
 import { UserStatus } from 'src/enums/user-status.enum';
 import { MailService } from '../mail/mail.service';
 import {
@@ -251,41 +248,21 @@ export class UserService {
     await this.userRepository.updateOne({ _id: id }, update);
   }
 
-  async revoke(id: string) {
-    const user = await this.userRepository.findById(id);
-    if (user.role === Role.SUPERADMIN) {
-      throw new BadRequestException('Superadmin cannot be revoked');
-    }
-
-    user.role = Role.GUEST;
-    const updated = await user.save();
-
-    return updated;
-  }
-
-  async invitation(token: string): Promise<UserInvitation> {
-    const cache = await this.redisService.get(this.prefix, token);
+  async getTokens(id: string) {
+    const cache = await this.redisService.get(this.prefix, id);
     if (!cache) {
-      throw new BadRequestException('Invitation not found');
+      throw new BadRequestException('Cache not found');
     }
 
-    const data = parse<UserInvitation>(cache);
+    const data = parse(cache);
     if (!data) {
-      throw new BadRequestException('Invitation not found');
+      throw new BadRequestException('Cache not found');
     }
 
-    if (
-      data.status === UserStatus.NEW_USER ||
-      data.status === UserStatus.REGISTRATION ||
-      data.status === UserStatus.EMAIL_UPDATE
-    ) {
-      return data;
-    }
-
-    throw new BadRequestException('Invitation not found');
+    return data;
   }
 
-  async createInvitation(data: InviteRequestUserDto[]) {
+  async createRoleInvitation(data: RoleInviteDto[]) {
     for (const e of data) {
       const toUser = await this.userRepository.findOne({ email: e.email });
 
@@ -360,7 +337,7 @@ export class UserService {
     };
   }
 
-  async createRequest(id: string, data: InviteRequestUserRoleDto) {
+  async createRoleRequest(id: string, data: RoleRequestDto) {
     const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
     if (!toUser) {
       throw new BadRequestException('Admin not found');
@@ -447,43 +424,43 @@ export class UserService {
     return { message: 'Successfully update email' };
   }
 
-  async handleInvitation(token: string, action: RequestAction) {
+  async handleRoleInvitation(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
-      return this.acceptInvitation(token);
+      return this.acceptRoleInvitation(token);
     }
 
     if (action === RequestAction.REJECT) {
-      return this.rejectInvitation(token);
+      return this.rejectRoleInvitation(token);
     }
 
     throw new BadRequestException('Invalid handle request');
   }
 
-  async handleRequest(token: string, action: RequestAction) {
+  async handleRoleRequest(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
-      return this.acceptRequest(token);
+      return this.acceptRoleRequest(token);
     }
 
     if (action === RequestAction.REJECT) {
-      return this.rejectRequest(token);
+      return this.rejectRoleRequest(token);
     }
 
     throw new BadRequestException('Invalid handle request');
   }
 
-  async handleRegistration(token: string, action: RequestAction) {
+  async handleUserRegistration(token: string, action: RequestAction) {
     if (action === RequestAction.ACCEPT) {
-      return this.acceptRegistration(token);
+      return this.acceptUserRegistration(token);
     }
 
     if (action === RequestAction.REJECT) {
-      return this.rejectRegistration(token);
+      return this.rejectUserRegistration(token);
     }
 
     throw new BadRequestException('Invalid handle registration request');
   }
 
-  private async acceptRequest(token: string) {
+  private async acceptRoleRequest(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
@@ -546,7 +523,7 @@ export class UserService {
     };
   }
 
-  private async rejectRequest(token: string) {
+  private async rejectRoleRequest(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
@@ -596,7 +573,7 @@ export class UserService {
     };
   }
 
-  private async acceptInvitation(token: string) {
+  private async acceptRoleInvitation(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
@@ -651,7 +628,7 @@ export class UserService {
     return this.notificationRepository.insert(notification);
   }
 
-  private async rejectInvitation(token: string) {
+  private async rejectRoleInvitation(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
@@ -697,7 +674,7 @@ export class UserService {
     return this.notificationRepository.insert(notification);
   }
 
-  private async acceptRegistration(token: string) {
+  private async acceptUserRegistration(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');
@@ -779,7 +756,7 @@ export class UserService {
     };
   }
 
-  private async rejectRegistration(token: string) {
+  private async rejectUserRegistration(token: string) {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       throw new BadRequestException('Expired token');

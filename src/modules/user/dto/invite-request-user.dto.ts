@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsEnum, IsNotEmpty, IsString } from 'class-validator';
 import { Role } from 'src/enums/role.enum';
 
-export class InviteRequestUserRoleDto {
+export class RoleRequestDto {
   @ApiProperty({
     type: Role,
     enum: [Role.GUEST, Role.EDITOR, Role.CONTRIBUTOR],
@@ -15,7 +15,7 @@ export class InviteRequestUserRoleDto {
   readonly role: Role;
 }
 
-export class InviteRequestUserDto extends InviteRequestUserRoleDto {
+export class RoleInviteDto extends RoleRequestDto {
   @ApiProperty({
     type: String,
     required: true,
