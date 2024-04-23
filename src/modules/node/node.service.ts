@@ -645,7 +645,6 @@ export class NodeService {
 
     const { nodeId, userIds } = data;
 
-    const notifications = [];
     const node = await this.nodeRepository.findById(nodeId);
 
     await this.deleteNode(nodeId);
@@ -653,22 +652,22 @@ export class NodeService {
     for (const userId of userIds) {
       const user = await this.userRepository.findOne({ _id: userId });
       if (user) {
-        notifications.push({
+        const notification = {
           read: false,
           type: NotificationType.REMOVE_NODE,
-          referenceId: token,
           message: `Admin is accepting your request. ${startCase(
             node.fullname,
           )} node is deleted.`,
           to: user._id,
           action: false,
-        });
+        };
+
+        this.notificationRepository.insert(notification);
       }
     }
 
     await this.redisService.del(this.prefix, nodeId);
     await this.redisService.del(this.prefix, token);
-    await this.notificationRepository.bulkSave(notifications);
     await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },
@@ -685,28 +684,27 @@ export class NodeService {
 
     const { nodeId, userIds } = data;
 
-    const notifications = [];
     const node = await this.nodeRepository.findById(nodeId);
 
     for (const userId of userIds) {
       const user = await this.userRepository.findOne({ _id: userId });
       if (user) {
-        notifications.push({
+        const notification = {
           read: false,
           type: NotificationType.REMOVE_NODE,
-          referenceId: token,
           message: `Admin is rejecting your request to delete ${startCase(
             node.fullname,
           )} node.`,
           to: user._id,
           action: false,
-        });
+        };
+
+        this.notificationRepository.insert(notification);
       }
     }
 
     await this.redisService.del(this.prefix, nodeId);
     await this.redisService.del(this.prefix, token);
-    await this.notificationRepository.bulkSave(notifications);
     await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },
