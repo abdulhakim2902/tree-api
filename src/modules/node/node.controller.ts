@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { Tag } from 'src/enums/api-tag.enum';
 import { Prefix } from 'src/enums/controller-prefix.enum';
@@ -16,8 +8,11 @@ import { CreateParentsDto } from './dto/create-parents.dto';
 import { CreateChildDto } from './dto/create-child.dto';
 import { NodeRelative } from 'src/interfaces/tree-node.interface';
 import { Roles } from 'src/decorators/role';
-import { CREATE, DELETE, READ, UPDATE } from 'src/constants/permission';
+import { CREATE, READ, UPDATE } from 'src/constants/permission';
 import { Public } from 'src/decorators/public';
+import { UserProfile } from 'src/decorators/user-profile';
+import { RequestAction } from 'src/enums/request-action';
+import { Role } from 'src/enums/role.enum';
 
 @ApiBearerAuth()
 @ApiTags(Tag.NODE)
@@ -115,9 +110,20 @@ export class NodeController {
     return this.nodeService.updateNodeProfile(id, data);
   }
 
-  @Delete('/:id')
-  @Roles(DELETE)
-  async deleteById(@Param('id') id: string) {
-    return this.nodeService.deleteNode(id);
+  @Roles([Role.SUPERADMIN])
+  @Post('/delete-request/:token/:action')
+  async handleDeleteNodeRequest(
+    @Param('token') token: string,
+    @Param('action') action: RequestAction,
+  ) {
+    return this.nodeService.handleDeleteNodeRequest(token, action);
+  }
+
+  @Post('/:id/delete-request')
+  async createDeleteNodeRequest(
+    @Param('id') id: string,
+    @UserProfile('id') userId: string,
+  ) {
+    return this.nodeService.createDeleteNodeRequest(id, userId);
   }
 }

@@ -16,7 +16,7 @@ import { User } from 'src/modules/user/user.schema';
 import { CreateUserDto } from '../user/dto';
 import { RedisService } from '../redis/redis.service';
 import { ConfigService } from '@nestjs/config';
-import { generateRandomString, parse } from 'src/helper/string';
+import { generateRandomString } from 'src/helper/string';
 import { UserInvitation } from 'src/interfaces/user-invitations';
 import { uniq } from 'lodash';
 
@@ -47,20 +47,19 @@ export class AuthService {
   }
 
   async login(data: LoginDto): Promise<AccessToken> {
+    const { username, password } = data;
     const user = await this.userService.findOne({
-      $or: [{ username: data.username }, { email: data.username }],
+      $or: [{ username }, { email: username }],
     });
 
     if (!user) {
-      const token = await this.redisService.get('user', data.username);
-
+      const prefix = 'user';
+      const token = await this.redisService.get<string>(prefix, username);
       if (!token) {
         throw new NotFoundException('User not found');
       }
 
-      const cache = await this.redisService.get('user', token);
-      const user = parse<UserInvitation>(cache);
-
+      const user = await this.redisService.get<UserInvitation>(prefix, token);
       if (!user) {
         throw new BadRequestException('Expired token');
       }
@@ -78,7 +77,7 @@ export class AuthService {
       }
     }
 
-    const isValid = await bcrypt.compare(data.password, user.password);
+    const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       throw new UnauthorizedException('Invalid password');
     }
@@ -96,37 +95,24 @@ export class AuthService {
     const sessionToken = await this.jwtService.signAsync(payload, { secret });
     const cacheData = { id: user.id, secret: randSecret, token: sessionToken };
 
-    const activeUsersCache = await this.redisService.get(
-      this.prefix,
-      'active_users',
-    );
+    const key = 'active_users';
+    const actives = await this.redisService
+      .get<string[]>(this.prefix, key)
+      .then((res) => res ?? []);
 
-    const activeUsers = parse<string[]>(activeUsersCache) ?? [];
-    activeUsers.push(user.id);
-    const str = JSON.stringify(uniq(activeUsers));
-
-    await this.redisService.set(this.prefix, 'active_users', str);
-    await this.redisService.set(
-      this.prefix,
-      user.id,
-      JSON.stringify(cacheData),
-      this.expires,
-    );
+    await this.redisService.set(this.prefix, key, uniq([...actives, user.id]));
+    await this.redisService.set(this.prefix, user.id, cacheData, this.expires);
 
     return { token: sessionToken, verified: true };
   }
 
   async logout(id: string) {
-    const activeUsersCache = await this.redisService.get(
-      this.prefix,
-      'active_users',
-    );
+    const key = 'active_users';
+    const actives = await this.redisService
+      .get<string[]>(this.prefix, key)
+      .then((res) => (res ?? []).filter((e) => e !== id));
 
-    const activeUsers = parse<string[]>(activeUsersCache) ?? [];
-    const updatedActiveUsers = activeUsers.filter((e) => e !== id);
-    const str = JSON.stringify(updatedActiveUsers);
-
-    await this.redisService.set(this.prefix, 'active_users', str);
+    await this.redisService.set(this.prefix, key, actives);
     await this.redisService.del(this.prefix, id);
 
     return {

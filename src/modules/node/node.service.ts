@@ -1,3 +1,5 @@
+import * as crypto from 'crypto';
+
 import {
   BadRequestException,
   Injectable,
@@ -14,7 +16,7 @@ import { Node } from 'src/modules/node/schemas/node.schema';
 import { NodeRepository } from 'src/modules/node/node.repository';
 import { RelationType, SpouseRelationType } from 'src/enums/relation-type.enum';
 import { NodeRelation } from './schemas/node.relation.schema';
-import { intersectionWith } from 'lodash';
+import { intersectionWith, startCase, uniq } from 'lodash';
 import { NodeFamily } from './schemas/node.family.schema';
 import mongoose, { PipelineStage, UpdateQuery } from 'mongoose';
 import {
@@ -23,11 +25,25 @@ import {
   TreeNodeFamily,
 } from 'src/interfaces/tree-node.interface';
 import { SocketGateway } from '../socket/socket.gateway';
+import { UserRepository } from '../user/user.repository';
+import { Role } from 'src/enums/role.enum';
+import { NotificationType } from 'src/enums/notification-type.enum';
+import { RedisService } from '../redis/redis.service';
+import { NotificationRepository } from '../notification/notification.repository';
+import { RequestAction } from 'src/enums/request-action';
+import { DeleteRequest } from 'src/interfaces/user-invitations';
+import { FileService } from '../file/file.service';
 
 @Injectable()
 export class NodeService {
+  private readonly prefix = 'node';
+
   constructor(
+    private readonly userRepository: UserRepository,
     private readonly nodeRepository: NodeRepository,
+    private readonly notificationRepository: NotificationRepository,
+    private readonly redisService: RedisService,
+    private readonly fileService: FileService,
     private readonly socket: SocketGateway,
   ) {}
 
@@ -59,11 +75,71 @@ export class NodeService {
         break;
     }
 
-    this.relatives([...ids, new mongoose.Types.ObjectId(id)]).then(
-      ({ nodes }) => this.socket.sendNode(id, nodes, 'add'),
+    this.relatives(ids).then(({ nodes }) =>
+      this.socket.sendNode(id, nodes, 'add'),
     );
 
     return { message: 'Successfully create relatives' };
+  }
+
+  async createDeleteNodeRequest(id: string, userId: string) {
+    const fromUser = await this.userRepository.findById(userId);
+    if (fromUser.role === Role.SUPERADMIN) {
+      return this.deleteNode(id);
+    }
+
+    const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
+
+    if (!toUser) {
+      throw new BadRequestException('Admin not found');
+    }
+
+    const node = await this.nodeRepository.findById(id);
+    if (node.children.length > 0) {
+      throw new UnprocessableEntityException('Node children existed');
+    }
+
+    const currentToken = await this.redisService.get<string>(this.prefix, id);
+    const token = currentToken ?? crypto.randomBytes(20).toString('hex');
+    const payload = await this.redisService
+      .get<DeleteRequest>(this.prefix, token)
+      .then((res) => res ?? { userIds: [], nodeId: id });
+
+    payload.userIds = uniq([...payload.userIds, fromUser.id]);
+
+    const notification = {
+      read: false,
+      type: NotificationType.REMOVE_NODE,
+      referenceId: token,
+      message: `${startCase(fromUser.name)} is requesting to remove ${startCase(
+        node.fullname,
+      )} node`,
+      to: toUser._id,
+      action: true,
+    };
+
+    await this.redisService.set(this.prefix, id, token);
+    await this.redisService.set(this.prefix, token, payload);
+    await this.notificationRepository.findAndModify(
+      { referenceId: token, action: true, type: NotificationType.REMOVE_NODE },
+      notification,
+    );
+
+    await this.sendNotification(toUser.id);
+
+    return { message: 'Delete request is sent' };
+  }
+
+  async handleDeleteNodeRequest(token: string, action: RequestAction) {
+    if (action === RequestAction.ACCEPT) {
+      return this.acceptDeleteNodeRequest(token);
+    }
+
+    if (action === RequestAction.REJECT) {
+      return this.rejectDeleteNodeRequest(token);
+    }
+
+    throw new BadRequestException('Invalid handle request');
   }
 
   async deleteNode(id: string) {
@@ -72,6 +148,7 @@ export class NodeService {
       throw new UnprocessableEntityException('Node children existed');
     }
 
+    await this.fileService.deleteFiles(id);
     await this.nodeRepository.deleteById(id);
     await this.nodeRepository.updateMany(
       {},
@@ -544,7 +621,7 @@ export class NodeService {
 
     await this.nodeRepository.bulkSave([...parents, child]);
 
-    return { ids: [child._id, parents[0]._id, parents[1]._id] };
+    return { ids: [child._id] };
   }
 
   private async createSibling(id: string, data: CreateNodeDto) {
@@ -558,5 +635,95 @@ export class NodeService {
     };
 
     return this.createChild(node.parents[1].id.toString(), createChild);
+  }
+
+  private async acceptDeleteNodeRequest(token: string) {
+    const data = await this.redisService.get<DeleteRequest>(this.prefix, token);
+    if (!data) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const { nodeId, userIds } = data;
+
+    const notifications = [];
+    const node = await this.nodeRepository.findById(nodeId);
+
+    await this.deleteNode(nodeId);
+
+    for (const userId of userIds) {
+      const user = await this.userRepository.findOne({ _id: userId });
+      if (user) {
+        notifications.push({
+          read: false,
+          type: NotificationType.REMOVE_NODE,
+          referenceId: token,
+          message: `Admin is accepting your request. ${startCase(
+            node.fullname,
+          )} node is deleted.`,
+          to: user._id,
+          action: false,
+        });
+      }
+    }
+
+    await this.redisService.del(this.prefix, nodeId);
+    await this.redisService.del(this.prefix, token);
+    await this.notificationRepository.bulkSave(notifications);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
+    return { message: 'Delete request is accepted' };
+  }
+
+  private async rejectDeleteNodeRequest(token: string) {
+    const data = await this.redisService.get<DeleteRequest>(this.prefix, token);
+    if (!data) {
+      throw new BadRequestException('Expired token');
+    }
+
+    const { nodeId, userIds } = data;
+
+    const notifications = [];
+    const node = await this.nodeRepository.findById(nodeId);
+
+    for (const userId of userIds) {
+      const user = await this.userRepository.findOne({ _id: userId });
+      if (user) {
+        notifications.push({
+          read: false,
+          type: NotificationType.REMOVE_NODE,
+          referenceId: token,
+          message: `Admin is rejecting your request to delete ${startCase(
+            node.fullname,
+          )} node.`,
+          to: user._id,
+          action: false,
+        });
+      }
+    }
+
+    await this.redisService.del(this.prefix, nodeId);
+    await this.redisService.del(this.prefix, token);
+    await this.notificationRepository.bulkSave(notifications);
+    await this.notificationRepository.updateMany(
+      { referenceId: token },
+      { $unset: { referenceId: '' }, action: false, read: true },
+    );
+
+    return { message: 'Delete request is rejected' };
+  }
+
+  private async sendNotification(to: string) {
+    try {
+      const { count } = await this.notificationRepository.count({
+        to,
+        read: false,
+      });
+      await this.socket.sendNotification(to, count);
+    } catch {
+      // ignore
+    }
   }
 }

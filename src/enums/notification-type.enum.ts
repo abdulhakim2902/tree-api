@@ -3,4 +3,5 @@ export enum NotificationType {
   INVITATION = 'invitation',
   CONNECT = 'connect',
   REGISTRATION = 'registration',
+  REMOVE_NODE = 'remove_node',
 }

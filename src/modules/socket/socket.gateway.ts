@@ -1,7 +1,6 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 import { RedisService } from '../redis/redis.service';
-import { parse } from 'src/helper/string';
 import { TreeNode } from 'src/interfaces/tree-node.interface';
 
 @WebSocketGateway({
@@ -18,8 +17,10 @@ export class SocketGateway {
   }
 
   async sendNode(id: string, nodes: TreeNode[], action: 'add' | 'remove') {
-    const cache = await this.redisService.get('auth', 'active_users');
-    const actives = parse<string[]>(cache) ?? [];
+    const [prefix, key] = ['auth', 'active_users'];
+    const actives = await this.redisService
+      .get<string[]>(prefix, key)
+      .then((res) => res ?? []);
 
     for (const activeId of actives) {
       this.server.emit(`user:${activeId}:node:${action}`, { id, nodes });

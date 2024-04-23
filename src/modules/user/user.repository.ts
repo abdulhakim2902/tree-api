@@ -32,7 +32,7 @@ export class UserRepository {
     return user;
   }
 
-  async findOne(query: Record<string, any>): Promise<User | null> {
+  async findOne(query: UpdateQuery<User>): Promise<User | null> {
     try {
       const user = await this.user.findOne(query).exec();
       return user;

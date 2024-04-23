@@ -23,7 +23,7 @@ import { NotificationType } from 'src/enums/notification-type.enum';
 import { startCase } from 'lodash';
 import { NotificationRepository } from '../notification/notification.repository';
 import { RedisService } from '../redis/redis.service';
-import { isVowel, parse } from 'src/helper/string';
+import { isVowel } from 'src/helper/string';
 import { SocketGateway } from '../socket/socket.gateway';
 import { UpdateQuery } from 'mongoose';
 
@@ -94,9 +94,8 @@ export class UserService {
       };
 
       const emailPayload = { token, type: 'registration', email };
-      const payloadStr = JSON.stringify(payload);
 
-      await this.redisService.set(this.prefix, token, payloadStr, TTL);
+      await this.redisService.set(this.prefix, token, payload, TTL);
       await this.redisService.set(this.prefix, email, token, TTL);
       await this.redisService.set(this.prefix, username, token, TTL);
 
@@ -120,20 +119,12 @@ export class UserService {
     const cache = await this.redisService.get(this.prefix, token);
     if (!cache) {
       await this.handleRemoveToken(token);
-      throw new BadRequestException('Expired token');
-    }
-
-    const invitation = parse<UserInvitation>(cache);
-    if (!invitation) {
-      await this.handleRemoveToken(token);
       throw new BadRequestException('Invalid data');
     }
 
-    if (
-      ![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(
-        invitation.status,
-      )
-    ) {
+    const invitation = cache as UserInvitation;
+    const status = invitation.status;
+    if (![UserStatus.NEW_USER, UserStatus.REGISTRATION].includes(status)) {
       throw new BadRequestException('Invalid token');
     }
 
@@ -143,9 +134,7 @@ export class UserService {
       if (!invitation?.verified?.admin) {
         invitation.verified.user = true;
 
-        const payloadStr = JSON.stringify(invitation);
-
-        await this.redisService.set(this.prefix, token, payloadStr);
+        await this.redisService.set(this.prefix, token, invitation);
         await this.redisService.set(this.prefix, invitation.email, token);
         await this.redisService.set(this.prefix, invitation.username, token);
 
@@ -195,7 +184,7 @@ export class UserService {
     if (data.email) {
       const user = await this.userRepository.findById(id);
       const cache = await this.redisService.get(this.prefix, id);
-      const tokens = parse<UserToken>(cache) ?? {};
+      const tokens = (cache as UserToken) ?? {};
       const currentToken = tokens?.[UserStatus.EMAIL_UPDATE];
       const token = currentToken ?? (await this.generateOTP());
       const payload = {
@@ -209,11 +198,8 @@ export class UserService {
 
       tokens[UserStatus.EMAIL_UPDATE] = token;
 
-      const payloadStr = JSON.stringify(payload);
-      const tokenStr = JSON.stringify(tokens);
-
-      await this.redisService.set(this.prefix, token, payloadStr, TTL);
-      await this.redisService.set(this.prefix, id, tokenStr);
+      await this.redisService.set(this.prefix, token, payload, TTL);
+      await this.redisService.set(this.prefix, id, tokens);
       await this.mailService.sendEmailTo(data.email, payload);
 
       return user;
@@ -249,14 +235,9 @@ export class UserService {
   }
 
   async getTokens(id: string) {
-    const cache = await this.redisService.get(this.prefix, id);
-    if (!cache) {
-      throw new BadRequestException('Cache not found');
-    }
-
-    const data = parse(cache);
+    const data = await this.redisService.get(this.prefix, id);
     if (!data) {
-      throw new BadRequestException('Cache not found');
+      throw new BadRequestException('Token not found');
     }
 
     return data;
@@ -264,7 +245,8 @@ export class UserService {
 
   async createRoleInvitation(data: RoleInviteDto[]) {
     for (const e of data) {
-      const toUser = await this.userRepository.findOne({ email: e.email });
+      const { email, role } = e;
+      const toUser = await this.userRepository.findOne({ email });
 
       let token = await this.generateOTP();
       let status = UserStatus.NEW_USER;
@@ -272,35 +254,26 @@ export class UserService {
         status = UserStatus.ROLE_UPDATE;
       }
 
-      const data = { email: e.email, role: e.role, status };
+      const data = { email, role, status };
 
       if (status === UserStatus.NEW_USER) {
-        const currentToken = await this.redisService.get(this.prefix, e.email);
-        if (currentToken) {
-          await this.redisService.del(this.prefix, currentToken);
+        const current = await this.redisService.get<string>(this.prefix, email);
+        if (current) {
+          await this.redisService.del(this.prefix, current);
         }
 
-        const to = e.email;
-        const emailPayload = { token, type: 'invites', role: e.role };
-        const str = JSON.stringify(data);
+        const to = email;
+        const emailPayload = { token, type: 'invites', role };
 
         await this.mailService.sendEmailTo(to, emailPayload);
-        await this.redisService.set(this.prefix, token, str, TTL);
-        await this.redisService.set(this.prefix, e.email, token, TTL);
+        await this.redisService.set(this.prefix, token, data, TTL);
+        await this.redisService.set(this.prefix, email, token, TTL);
       } else {
         const cache = await this.redisService.get(this.prefix, toUser.id);
-        const tokens = parse<UserToken>(cache) ?? {};
+        const tokens = (cache as UserToken) ?? {};
         const current = tokens[UserStatus.ROLE_UPDATE];
-        if (current) {
-          const dataStr = await this.redisService.get(this.prefix, current);
-          const dataParse = parse<UserInvitation>(dataStr);
-          if (dataParse) {
-            token = current;
+        if (current) token = current;
 
-            data.role = e.role;
-            data.email = dataParse.email;
-          }
-        }
         const notification = {
           read: false,
           referenceId: token,
@@ -314,11 +287,8 @@ export class UserService {
 
         tokens[UserStatus.ROLE_UPDATE] = token;
 
-        const payloadStr = JSON.stringify(data);
-        const tokensStr = JSON.stringify(tokens);
-
-        await this.redisService.set(this.prefix, token, payloadStr);
-        await this.redisService.set(this.prefix, toUser.id, tokensStr);
+        await this.redisService.set(this.prefix, token, data);
+        await this.redisService.set(this.prefix, toUser.id, tokens);
         await this.notificationRepository.findAndModify(
           {
             referenceId: token,
@@ -344,7 +314,7 @@ export class UserService {
     }
 
     const cache = await this.redisService.get(this.prefix, id);
-    const tokens = parse<UserToken>(cache) ?? {};
+    const tokens = (cache as UserToken) ?? {};
     const currentToken = tokens?.[UserStatus.ROLE_REQUEST];
     const token = currentToken ?? (await this.generateOTP());
 
@@ -372,11 +342,8 @@ export class UserService {
 
     tokens[UserStatus.ROLE_REQUEST] = token;
 
-    const payloadStr = JSON.stringify(payload);
-    const tokensStr = JSON.stringify(tokens);
-
-    await this.redisService.set(this.prefix, token, payloadStr);
-    await this.redisService.set(this.prefix, id, tokensStr);
+    await this.redisService.set(this.prefix, token, payload);
+    await this.redisService.set(this.prefix, id, tokens);
     await this.notificationRepository.findAndModify(
       { referenceId: token, read: false, type: NotificationType.REQUEST },
       notification,
@@ -391,35 +358,30 @@ export class UserService {
 
   async handleEmailUpdate(id: string, token: string) {
     const cache = await this.redisService.get(this.prefix, id);
-    const tokens = parse<UserToken>(cache) ?? {};
+    const tokens = (cache as UserToken) ?? {};
     const currentToken = tokens?.[UserStatus.EMAIL_UPDATE];
 
     if (token !== currentToken) {
       throw new BadRequestException('Invalid token');
     }
 
-    const payloadCache = await this.redisService.get(this.prefix, currentToken);
-    if (!payloadCache) {
+    const user = await this.redisService.get<UpdateUser>(this.prefix, token);
+    if (!user) {
       throw new BadRequestException('Expired token');
     }
 
-    const payload = parse<UpdateUser>(payloadCache);
-    if (!payload) {
-      throw new BadRequestException('Invalid token');
-    }
-
-    if (payload.status !== UserStatus.EMAIL_UPDATE) {
+    if (user.status !== UserStatus.EMAIL_UPDATE) {
       throw new BadRequestException('Invalid token');
     }
 
     delete tokens[UserStatus.EMAIL_UPDATE];
 
     await this.userRepository.updateById(id, {
-      $set: { email: payload.updatedEmail },
+      $set: { email: user.updatedEmail },
     });
 
     await this.redisService.del(this.prefix, currentToken);
-    await this.redisService.set(this.prefix, id, JSON.stringify(tokens));
+    await this.redisService.set(this.prefix, id, tokens);
 
     return { message: 'Successfully update email' };
   }
@@ -466,11 +428,7 @@ export class UserService {
       throw new BadRequestException('Expired token');
     }
 
-    const request = parse<UserInvitation>(cache);
-    if (!request) {
-      throw new BadRequestException('Request not found');
-    }
-
+    const request = cache as UserInvitation;
     if (request.status !== UserStatus.ROLE_REQUEST) {
       throw new BadRequestException('Invalid token');
     }
@@ -480,19 +438,15 @@ export class UserService {
       throw new BadRequestException('User not found');
     }
 
-    const tokensStr = await this.redisService.get(this.prefix, toUser.id);
-    const tokens = parse<UserToken>(tokensStr) ?? [];
+    const tokensCache = await this.redisService.get(this.prefix, toUser.id);
+    const tokens = (tokensCache as UserToken) ?? {};
 
     delete tokens[UserStatus.ROLE_REQUEST];
 
     if (Object.values(tokens).length <= 0) {
       await this.redisService.del(this.prefix, toUser.id);
     } else {
-      await this.redisService.set(
-        this.prefix,
-        toUser.id,
-        JSON.stringify(tokens),
-      );
+      await this.redisService.set(this.prefix, toUser.id, tokens);
     }
 
     await this.handleRemoveToken(token);
@@ -529,11 +483,7 @@ export class UserService {
       throw new BadRequestException('Expired token');
     }
 
-    const request = parse<UserInvitation>(cache);
-    if (!request) {
-      throw new BadRequestException('Request not found');
-    }
-
+    const request = cache as UserInvitation;
     if (request.status !== UserStatus.ROLE_REQUEST) {
       throw new BadRequestException('Invalid token');
     }
@@ -549,19 +499,15 @@ export class UserService {
       action: false,
     };
 
-    const tokensStr = await this.redisService.get(this.prefix, toUser.id);
-    const tokens = parse<UserToken>(tokensStr) ?? {};
+    const tokensCache = await this.redisService.get(this.prefix, toUser.id);
+    const tokens = (tokensCache as UserToken) ?? {};
 
     delete tokens[UserStatus.ROLE_REQUEST];
 
     if (Object.values(tokens).length <= 0) {
       await this.redisService.del(this.prefix, toUser.id);
     } else {
-      await this.redisService.set(
-        this.prefix,
-        toUser.id,
-        JSON.stringify(tokens),
-      );
+      await this.redisService.set(this.prefix, toUser.id, tokens);
     }
 
     await this.handleRemoveToken(token);
@@ -579,11 +525,7 @@ export class UserService {
       throw new BadRequestException('Expired token');
     }
 
-    const invitation = parse<UserInvitation>(cache);
-    if (!invitation) {
-      throw new BadRequestException('Invitation not found');
-    }
-
+    const invitation = cache as UserInvitation;
     if (invitation.status !== UserStatus.ROLE_UPDATE) {
       throw new BadRequestException('Invalid token');
     }
@@ -593,15 +535,15 @@ export class UserService {
       throw new BadRequestException('User not found');
     }
 
-    const tokensStr = await this.redisService.get(this.prefix, user.id);
-    const tokens = parse<UserToken>(tokensStr) ?? {};
+    const tokensCache = await this.redisService.get(this.prefix, user.id);
+    const tokens = (tokensCache as UserToken) ?? {};
 
     delete tokens[UserStatus.ROLE_UPDATE];
 
     if (Object.values(tokens).length <= 0) {
       await this.redisService.del(this.prefix, user.id);
     } else {
-      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
+      await this.redisService.set(this.prefix, user.id, tokens);
     }
 
     await this.handleRemoveToken(token);
@@ -634,11 +576,7 @@ export class UserService {
       throw new BadRequestException('Expired token');
     }
 
-    const invitation = parse<UserInvitation>(cache);
-    if (!invitation) {
-      throw new BadRequestException('Invitation not found');
-    }
-
+    const invitation = cache as UserInvitation;
     if (invitation.status !== UserStatus.ROLE_UPDATE) {
       throw new BadRequestException('Invalid token');
     }
@@ -648,15 +586,15 @@ export class UserService {
       throw new BadRequestException('User not found');
     }
 
-    const tokensStr = await this.redisService.get(this.prefix, user.id);
-    const tokens = parse<UserToken>(tokensStr) ?? {};
+    const tokenCache = await this.redisService.get(this.prefix, user.id);
+    const tokens = (tokenCache as UserToken) ?? {};
 
     delete tokens[UserStatus.ROLE_UPDATE];
 
     if (Object.values(tokens).length <= 0) {
       await this.redisService.del(this.prefix, user.id);
     } else {
-      await this.redisService.set(this.prefix, user.id, JSON.stringify(tokens));
+      await this.redisService.set(this.prefix, user.id, tokens);
     }
 
     await this.handleRemoveToken(token);
@@ -680,10 +618,7 @@ export class UserService {
       throw new BadRequestException('Expired token');
     }
 
-    const invitation = parse<UserInvitation>(cache);
-    if (!invitation) {
-      throw new BadRequestException('Invalid token');
-    }
+    const invitation = cache as UserInvitation;
 
     if (invitation.status !== UserStatus.REGISTRATION) {
       throw new BadRequestException('Invalid token');
@@ -692,9 +627,7 @@ export class UserService {
     if (!invitation.verified.user) {
       invitation.verified = { admin: true, user: false };
 
-      const str = JSON.stringify(invitation);
-
-      await this.redisService.set(this.prefix, token, str, TTL);
+      await this.redisService.set(this.prefix, token, invitation, TTL);
       await this.redisService.set(this.prefix, invitation.email, token, TTL);
       await this.redisService.set(this.prefix, invitation.username, token, TTL);
       await this.notificationRepository.updateMany(
@@ -762,7 +695,7 @@ export class UserService {
       throw new BadRequestException('Expired token');
     }
 
-    const invitation = parse<UserInvitation>(cache);
+    const invitation = cache as UserInvitation;
     if (invitation.status !== UserStatus.REGISTRATION) {
       throw new BadRequestException('Invalid token');
     }

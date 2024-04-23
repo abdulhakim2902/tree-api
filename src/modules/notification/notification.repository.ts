@@ -1,7 +1,10 @@
 import { InjectModel } from '@nestjs/mongoose';
 import { Notification } from './notification.schema';
 import { FilterQuery, Model } from 'mongoose';
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { CreateNotification } from 'src/interfaces/notification.interface';
 
 export class NotificationRepository {
@@ -65,6 +68,15 @@ export class NotificationRepository {
       return request;
     } catch (err) {
       throw new BadRequestException(err.message);
+    }
+  }
+
+  async bulkSave(data: Notification[]) {
+    try {
+      const result = await this.notification.bulkSave(data);
+      return result;
+    } catch (err) {
+      throw new UnprocessableEntityException(err.message);
     }
   }
 }

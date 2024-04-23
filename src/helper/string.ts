@@ -11,6 +11,8 @@ export function startCase(v: string) {
 }
 
 export function parse<T>(data: string): T | null {
+  if (!parse) return null;
+
   try {
     const result = JSON.parse(data);
     return result as T;

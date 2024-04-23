@@ -5,6 +5,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { Redis } from 'ioredis';
+import { parse } from 'src/helper/string';
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
@@ -14,26 +15,31 @@ export class RedisService implements OnModuleDestroy {
     this.redisClient.disconnect();
   }
 
-  async get(prefix: string, key: string): Promise<string | null> {
+  async get<T>(prefix: string, key: string): Promise<T | null> {
     try {
       const result = await this.redisClient.get(`${prefix}:${key}`);
-      return result;
+      return parse<T>(result);
     } catch (err) {
       throw new BadRequestException(err.message);
     }
   }
 
-  async set(
+  async set<T>(
     prefix: string,
     key: string,
-    value: string,
+    value: T,
     expiry?: number,
   ): Promise<void> {
     try {
+      if (!value) {
+        throw new Error('Invalid value');
+      }
+
+      const str = JSON.stringify(value);
       if (!expiry) {
-        await this.redisClient.set(`${prefix}:${key}`, value);
+        await this.redisClient.set(`${prefix}:${key}`, str);
       } else {
-        await this.redisClient.set(`${prefix}:${key}`, value, 'EX', expiry);
+        await this.redisClient.set(`${prefix}:${key}`, str, 'EX', expiry);
       }
     } catch (err) {
       throw new BadRequestException(err.message);

@@ -9,7 +9,6 @@ import { Reflector } from '@nestjs/core';
 import { PUBLIC_KEY } from 'src/decorators/public';
 import { Request } from 'src/interfaces/request.interface';
 import { RedisService } from 'src/modules/redis/redis.service';
-import { parse } from 'src/helper/string';
 import { ConfigService } from '@nestjs/config';
 import { UserProfile } from 'src/interfaces/user-profile.interface';
 import { Session } from 'src/interfaces/session.interface';
@@ -56,16 +55,8 @@ export class AuthGuard implements CanActivate {
         throw new Error('Invalid token');
       }
 
-      if (!userProfile?.id) {
-        throw new Error('Invalid user');
-      }
-
-      const cache = await this.redisService.get(this.prefix, userProfile.id);
-      if (!cache) {
-        throw new Error('Session expired');
-      }
-
-      const session = parse<Session>(cache);
+      const { id } = userProfile;
+      const session = await this.redisService.get<Session>(this.prefix, id);
       if (!session) {
         throw new Error('Invalid session');
       }
