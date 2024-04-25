@@ -13,6 +13,7 @@ import { Public } from 'src/decorators/public';
 import { UserProfile } from 'src/decorators/user-profile';
 import { RequestAction } from 'src/enums/request-action';
 import { Role } from 'src/enums/role.enum';
+import { DeleteNodeRequestDto } from './dto/delete-node-request.dto';
 
 @ApiBearerAuth()
 @ApiTags(Tag.NODE)
@@ -119,11 +120,12 @@ export class NodeController {
     return this.nodeService.handleDeleteNodeRequest(token, action);
   }
 
-  @Post('/:id/delete-request')
+  @ApiBody({ type: DeleteNodeRequestDto, isArray: false })
+  @Post('/delete-request')
   async createDeleteNodeRequest(
-    @Param('id') id: string,
     @UserProfile('id') userId: string,
+    @Body() data: DeleteNodeRequestDto,
   ) {
-    return this.nodeService.createDeleteNodeRequest(id, userId);
+    return this.nodeService.createDeleteNodeRequest(data, userId);
   }
 }

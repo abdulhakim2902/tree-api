@@ -32,4 +32,5 @@ export type UserToken = Record<UserStatus, string>;
 export type DeleteRequest = {
   userIds: string[];
   nodeId: string;
+  reason: string;
 };

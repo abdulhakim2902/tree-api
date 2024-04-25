@@ -33,6 +33,7 @@ import { NotificationRepository } from '../notification/notification.repository'
 import { RequestAction } from 'src/enums/request-action';
 import { DeleteRequest } from 'src/interfaces/user-invitations';
 import { FileService } from '../file/file.service';
+import { DeleteNodeRequestDto } from './dto/delete-node-request.dto';
 
 @Injectable()
 export class NodeService {
@@ -82,7 +83,8 @@ export class NodeService {
     return { message: 'Successfully create relatives' };
   }
 
-  async createDeleteNodeRequest(id: string, userId: string) {
+  async createDeleteNodeRequest(data: DeleteNodeRequestDto, userId: string) {
+    const { nodeId: id, reason } = data;
     const fromUser = await this.userRepository.findById(userId);
     if (fromUser.role === Role.SUPERADMIN) {
       return this.deleteNode(id);
@@ -103,7 +105,7 @@ export class NodeService {
     const token = currentToken ?? crypto.randomBytes(20).toString('hex');
     const payload = await this.redisService
       .get<DeleteRequest>(this.prefix, token)
-      .then((res) => res ?? { userIds: [], nodeId: id });
+      .then((res) => res ?? { userIds: [], nodeId: id, reason });
 
     payload.userIds = uniq([...payload.userIds, fromUser.id]);
 
@@ -113,7 +115,7 @@ export class NodeService {
       referenceId: token,
       message: `${startCase(fromUser.name)} is requesting to remove ${startCase(
         node.fullname,
-      )} node`,
+      )} node. Reason: ${reason}`,
       to: toUser._id,
       action: true,
     };
