@@ -113,9 +113,11 @@ export class NodeService {
       read: false,
       type: NotificationType.REMOVE_NODE,
       referenceId: token,
-      message: `${startCase(fromUser.name)} is requesting to remove ${startCase(
+      message: `<b>${startCase(
+        fromUser.name,
+      )}</b> is requesting to remove <b>${startCase(
         node.fullname,
-      )} node. Reason: ${reason}`,
+      )}</b> node. Reason: ${reason}`,
       to: toUser._id,
       action: true,
     };
@@ -657,9 +659,9 @@ export class NodeService {
         const notification = {
           read: false,
           type: NotificationType.REMOVE_NODE,
-          message: `Admin is accepting your request. ${startCase(
+          message: `Admin is accepting your request. <b>${startCase(
             node.fullname,
-          )} node is deleted.`,
+          )}</b> node is deleted.`,
           to: user._id,
           action: false,
         };
@@ -694,9 +696,9 @@ export class NodeService {
         const notification = {
           read: false,
           type: NotificationType.REMOVE_NODE,
-          message: `Admin is rejecting your request to delete ${startCase(
+          message: `Admin is rejecting your request to delete <b>${startCase(
             node.fullname,
-          )} node.`,
+          )}</b> node.`,
           to: user._id,
           action: false,
         };
