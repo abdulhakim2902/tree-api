@@ -644,14 +644,23 @@ export class NodeService {
   private async acceptDeleteNodeRequest(token: string) {
     const data = await this.redisService.get<DeleteRequest>(this.prefix, token);
     if (!data) {
+      await this.handleRemoveToken(token);
       throw new BadRequestException('Expired token');
     }
 
     const { nodeId, userIds } = data;
 
-    const node = await this.nodeRepository.findById(nodeId);
+    const node = await this.nodeRepository
+      .findById(nodeId)
+      .catch(async (err) => {
+        await this.handleRemoveToken(token);
+        throw err;
+      });
 
-    await this.deleteNode(nodeId);
+    await this.deleteNode(nodeId).catch(async (err) => {
+      await this.handleRemoveToken(token);
+      throw err;
+    });
 
     for (const userId of userIds) {
       const user = await this.userRepository.findOne({ _id: userId });
@@ -671,11 +680,7 @@ export class NodeService {
     }
 
     await this.redisService.del(this.prefix, nodeId);
-    await this.redisService.del(this.prefix, token);
-    await this.notificationRepository.updateMany(
-      { referenceId: token },
-      { $unset: { referenceId: '' }, action: false, read: true },
-    );
+    await this.handleRemoveToken(token);
 
     return { message: 'Delete request is accepted' };
   }
@@ -683,12 +688,18 @@ export class NodeService {
   private async rejectDeleteNodeRequest(token: string) {
     const data = await this.redisService.get<DeleteRequest>(this.prefix, token);
     if (!data) {
+      await this.handleRemoveToken(token);
       throw new BadRequestException('Expired token');
     }
 
     const { nodeId, userIds } = data;
 
-    const node = await this.nodeRepository.findById(nodeId);
+    const node = await this.nodeRepository
+      .findById(nodeId)
+      .catch(async (err) => {
+        await this.handleRemoveToken(token);
+        throw err;
+      });
 
     for (const userId of userIds) {
       const user = await this.userRepository.findOne({ _id: userId });
@@ -708,13 +719,22 @@ export class NodeService {
     }
 
     await this.redisService.del(this.prefix, nodeId);
+    await this.handleRemoveToken(token);
+
+    return { message: 'Delete request is rejected' };
+  }
+
+  private async handleRemoveToken(token: string) {
     await this.redisService.del(this.prefix, token);
     await this.notificationRepository.updateMany(
       { referenceId: token },
       { $unset: { referenceId: '' }, action: false, read: true },
     );
 
-    return { message: 'Delete request is rejected' };
+    const toUser = await this.userRepository.findOne({ role: Role.SUPERADMIN });
+    if (toUser) {
+      await this.sendNotification(toUser.id);
+    }
   }
 
   private async sendNotification(to: string) {
